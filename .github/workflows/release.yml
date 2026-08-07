@@ -49,17 +49,17 @@ jobs:
           - name: windows-x64
             os: windows-latest
             bundles: nsis
-            artifact-path: src-tauri/target/release/bundle/nsis/**
+            artifact-path: src-tauri/target/release/bundle/nsis/*.exe
           - name: linux-x64
             os: ubuntu-22.04
             bundles: deb,appimage
             artifact-path: |
-              src-tauri/target/release/bundle/deb/**
-              src-tauri/target/release/bundle/appimage/**
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/appimage/*.AppImage
           - name: macos-x64
             os: macos-14
             bundles: dmg
-            artifact-path: src-tauri/target/release/bundle/dmg/**
+            artifact-path: src-tauri/target/release/bundle/dmg/*.dmg
     steps:
       - uses: actions/checkout@v4
         with:
@@ -115,4 +115,4 @@ jobs:
         run: |
           while IFS= read -r -d '' asset; do
             gh release upload "$RELEASE_TAG" "$asset" --clobber --repo "$GITHUB_REPOSITORY"
-          done < <(find release-assets -type f -print0)
+          done < <(find release-assets -type f \( -name '*.exe' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.dmg' \) -print0)
