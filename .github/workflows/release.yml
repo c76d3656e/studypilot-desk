@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag whose assets should be built and uploaded
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -16,6 +21,7 @@ concurrency:
 jobs:
   release_please:
     name: Manage version
+    if: github.event_name != 'workflow_dispatch' || inputs.release_tag == ''
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -30,7 +36,9 @@ jobs:
 
   build:
     name: Build / ${{ matrix.name }}
-    if: needs.release_please.outputs.release_created == 'true'
+    if: >-
+      always() && (needs.release_please.outputs.release_created == 'true' ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != ''))
     needs: release_please
     runs-on: ${{ matrix.os }}
     timeout-minutes: 75
@@ -55,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release_please.outputs.tag_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || needs.release_please.outputs.tag_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -82,14 +90,16 @@ jobs:
       - run: node ./node_modules/@tauri-apps/cli/tauri.js build --bundles ${{ matrix.bundles }}
       - uses: actions/upload-artifact@v4
         with:
-          name: studypilot-${{ matrix.name }}-${{ needs.release_please.outputs.tag_name }}
+          name: studypilot-${{ matrix.name }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || needs.release_please.outputs.tag_name }}
           path: ${{ matrix.artifact-path }}
           if-no-files-found: error
           retention-days: 30
 
   publish_assets:
     name: Publish GitHub Release assets
-    if: needs.release_please.outputs.release_created == 'true'
+    if: >-
+      always() && (needs.release_please.outputs.release_created == 'true' ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != ''))
     needs: [release_please, build]
     runs-on: ubuntu-latest
     steps:
@@ -100,7 +110,7 @@ jobs:
       - name: Upload packaged applications
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.release_please.outputs.tag_name }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || needs.release_please.outputs.tag_name }}
         shell: bash
         run: |
           while IFS= read -r -d '' asset; do
