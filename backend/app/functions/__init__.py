@@ -23,3 +23,8 @@ from . import knowledge  # noqa: E402,F401
 from . import notebooks  # noqa: E402,F401
 from . import learning  # noqa: E402,F401
 from . import language  # noqa: E402,F401
+from . import documents  # noqa: E402,F401
+from . import documents_rev  # noqa: E402,F401
+from . import agent  # noqa: E402,F401
+from . import runtime  # noqa: E402,F401
+from . import files  # noqa: E402,F401
