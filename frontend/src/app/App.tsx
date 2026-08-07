@@ -13,7 +13,7 @@ import { NotebookLibrary } from "../features/NotebookLibrary";
 import { Trash } from "../features/Trash";
 import { GlobalSettings } from "../features/GlobalSettings";
 import { Lab } from "../features/Lab";
-import { Library } from "../features/Library";
+import { CompactLibrary, Library } from "../features/Library";
 import { CourseRoadmap } from "../features/CourseRoadmap";
 import { Settings } from "../features/Settings";
 import { Studio } from "../features/Studio";
@@ -1114,7 +1114,7 @@ export function App() {
         onBack={() => { setLinkedDocumentId(null); setLinkedDocumentContext({ documentIds: [], blockKey: "", selectedText: "", locator: {} }); }}
         onAgentContextChange={setLinkedDocumentContext}
       /></Suspense>
-    : <Library api={api} courseId={route.level === "course" ? route.courseId : activeCourseId} compact onOpen={(document) => setLinkedDocumentId(document.id)} />;
+    : <CompactLibrary api={api} courseId={route.level === "course" ? route.courseId : activeCourseId} onOpen={(document) => setLinkedDocumentId(document.id)} />;
   const presentedPage = linkedWorkspace === "library" && (workspaceView === "knowledge" || workspaceView === "learning")
     ? <StudySplitWorkspace
         primary={page}

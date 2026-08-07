@@ -99,7 +99,14 @@ async function sourceCreatedAt(file: File) {
   return file.lastModified > 0 ? new Date(file.lastModified).toISOString() : null;
 }
 
-export function Library({ api, onOpen, onOpenKnowledgeSplit, compact = false, courseId }: { api: ApiClient; onOpen?: (document: DocumentItem) => void; onOpenKnowledgeSplit?: () => void; compact?: boolean; courseId?: number }) {
+interface DocumentLibraryProps {
+  api: ApiClient;
+  onOpen?: (document: DocumentItem) => void;
+  onOpenKnowledgeSplit?: () => void;
+  courseId?: number;
+}
+
+function DocumentLibrary({ api, onOpen, onOpenKnowledgeSplit, courseId, layout }: DocumentLibraryProps & { layout: "page" | "compact" }) {
   const rememberedView = readLibraryView(courseId);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [query, setQuery] = useState(rememberedView.query);
@@ -283,7 +290,7 @@ export function Library({ api, onOpen, onOpenKnowledgeSplit, compact = false, co
 
   return (
     <section
-      className={`page document-library ${compact ? "is-compact" : ""} ${dragging ? "is-dragging" : ""}`}
+      className={`page document-library ${layout === "compact" ? "is-compact" : ""} ${dragging ? "is-dragging" : ""}`}
       data-testid="document-library-page"
       onDragEnter={(event) => {
         if (!event.dataTransfer.types.includes("Files")) return;
@@ -401,4 +408,12 @@ export function Library({ api, onOpen, onOpenKnowledgeSplit, compact = false, co
       />
     </section>
   );
+}
+
+export function Library(props: DocumentLibraryProps) {
+  return <DocumentLibrary {...props} layout="page" />;
+}
+
+export function CompactLibrary(props: DocumentLibraryProps) {
+  return <DocumentLibrary {...props} layout="compact" />;
 }
