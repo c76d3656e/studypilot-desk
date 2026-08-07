@@ -36,7 +36,8 @@ import type { AgentMode, AgentSource } from "../agent/types";
 import { announceDocumentSource, storeDocumentSourceFocus, type DocumentSourceFocus } from "../document/sourceFocus";
 import type { DocumentAgentContext } from "../document/DocumentWorkspace";
 import { ApiClient } from "../services/api";
-import type { Course, CourseCreateInput, DesktopRuntime, KnowledgeNotebook, TodayData } from "../types";
+import type { Course, CourseCreateInput, KnowledgeNotebook, TodayData } from "../types";
+import { platform, type RuntimeConfig } from "../platform";
 import { waitForMotionFeedback } from "../ui/motion";
 import { applyTypography, normalizeUiFontScale } from "../ui/typography";
 import { applyGlassOpacity, applyWallpaper, normalizeGlassOpacity, normalizeWallpaperMode, wallpaperUrl, type WallpaperMode } from "../ui/appearance";
@@ -75,7 +76,7 @@ function lastCourseDocument(courseId: number) {
 }
 
 export function App() {
-  const [runtime, setRuntime] = useState<DesktopRuntime | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeConfig | null>(null);
   const [settings, setSettings] = useState<Record<string, any> | null>(null);
   const [today, setToday] = useState<TodayData | null>(null);
   const [system, setSystem] = useState<Record<string, any> | null>(null);
@@ -107,7 +108,7 @@ export function App() {
     title: string;
     requestId: number;
   } | null>(null);
-  const api = useMemo(() => runtime ? new ApiClient(runtime.apiBase) : null, [runtime]);
+  const api = useMemo(() => runtime ? new ApiClient(runtime.apiBase, runtime.sessionToken) : null, [runtime]);
   const startupResolvedRef = useRef(false);
   const documentNavigationCloseTimerRef = useRef<number | null>(null);
   const knowledgeSourceRequestRef = useRef(0);
@@ -174,15 +175,16 @@ export function App() {
 
   useEffect(() => {
     let active = true;
-    window.studypilot.runtime().then((value) => {
+    const capabilities = platform();
+    capabilities.runtime().then((value) => {
       if (!active) return;
       setRuntime(value);
-      setExportDirectory(`${value.dataDir.replace(/[\\/]$/, "")}\\exports`);
-      window.studypilot.files.getExportDirectory?.()
+      setExportDirectory(value.dataDir ? `${value.dataDir.replace(/[\\/]$/, "")}\\exports` : "");
+      capabilities.files.getExportDirectory()
         .then((directory) => { if (active) setExportDirectory(directory); })
         .catch(() => undefined);
     }).catch((error) => setFatal(String(error)));
-    window.studypilot.fonts?.list()
+    capabilities.fonts.list()
       .then((fonts) => {
         if (!active) return;
         setSystemFonts([...new Set(fonts
@@ -525,20 +527,20 @@ export function App() {
   }
 
   async function chooseExportDirectory() {
-    const value = await window.studypilot.files.chooseExportDirectory?.() || null;
+    const value = await platform().files.chooseExportDirectory();
     if (value) setExportDirectory(value);
     return value;
   }
 
   async function resetExportDirectory() {
-    const value = await window.studypilot.files.resetExportDirectory?.()
+    const value = await platform().files.resetExportDirectory()
       || `${runtime!.dataDir.replace(/[\\/]$/, "")}\\exports`;
     setExportDirectory(value);
     return value;
   }
 
   async function openExportDirectory() {
-    await window.studypilot.files.openExportDirectory?.();
+    await platform().files.openExportDirectory();
   }
 
   async function createKnowledgeNotebook(input: Pick<KnowledgeNotebook, "title" | "description" | "kind" | "cover_style">) {

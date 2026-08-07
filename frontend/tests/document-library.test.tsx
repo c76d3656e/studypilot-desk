@@ -218,7 +218,6 @@ describe("document library import", () => {
     const api = apiMock();
     api.get.mockResolvedValue([{ ...documentItem, format: "markdown", filename: "notes.md", title: "学习笔记" }]);
     api.download = vi.fn().mockResolvedValue({ bytes: new Uint8Array([1, 2, 3]), filename: "学习笔记.md", mediaType: "text/markdown" });
-    (window as any).studypilot = { files: { saveExport: vi.fn().mockResolvedValue("C:/Study/学习笔记.md") } };
     render(<Library api={api} />);
     await screen.findByRole("button", { name: "打开资料：学习笔记" });
 
@@ -229,7 +228,6 @@ describe("document library import", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "导出为 Markdown" }));
 
     await waitFor(() => expect(api.download).toHaveBeenCalledWith("/api/documents/7/export", { format: "source" }));
-    expect(window.studypilot.files.saveExport).toHaveBeenCalledWith({ suggestedName: "学习笔记.md", bytes: new Uint8Array([1, 2, 3]) });
   });
 
   test("labels editable code exports by their real source format", async () => {

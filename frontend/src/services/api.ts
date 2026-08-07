@@ -21,7 +21,13 @@ export interface ApiRequestOptions {
 }
 
 export class ApiClient {
-  constructor(public readonly baseUrl: string) {}
+  constructor(public readonly baseUrl: string, private readonly sessionToken?: string) {}
+
+  private requestHeaders(init?: HeadersInit): Headers {
+    const headers = new Headers(init);
+    if (this.sessionToken) headers.set("x-studypilot-session", this.sessionToken);
+    return headers;
+  }
 
   async get<T>(path: string, options?: ApiRequestOptions): Promise<T> {
     return this.request<T>(path, {}, options);
@@ -47,7 +53,7 @@ export class ApiClient {
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: this.requestHeaders({ "content-type": "application/json" }),
         body: JSON.stringify(body ?? {}),
         signal: controller.signal,
       });
@@ -124,7 +130,7 @@ export class ApiClient {
   }
 
   async delete<T = void>(path: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, { method: "DELETE" });
+    const response = await fetch(`${this.baseUrl}${path}`, { method: "DELETE", headers: this.requestHeaders() });
     const payload = response.status === 204 ? {} : await response.json().catch(() => ({}));
     if (response.ok) return payload.data as T;
     const error = payload?.error;
@@ -136,7 +142,7 @@ export class ApiClient {
     try {
       response = await fetch(`${this.baseUrl}${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: this.requestHeaders({ "content-type": "application/json" }),
         body: JSON.stringify(body ?? {}),
       });
     } catch (error) {
@@ -163,7 +169,7 @@ export class ApiClient {
   }
 
   private async request<T>(path: string, init: RequestInit = {}, options: ApiRequestOptions = {}): Promise<T> {
-    const headers = new Headers(init.headers);
+    const headers = this.requestHeaders(init.headers);
     if (init.body && !(init.body instanceof FormData)) headers.set("content-type", "application/json");
     const controller = new AbortController();
     let timedOut = false;

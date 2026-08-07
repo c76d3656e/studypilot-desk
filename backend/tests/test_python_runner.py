@@ -306,6 +306,7 @@ def test_python_runner_does_not_leak_parent_secrets_to_code(tmp_path, monkeypatc
     )
 
     with TestClient(create_app(data_dir=tmp_path)) as client:
+        client.headers["x-studypilot-session"] = "super-secret-session"
         client.app.state.python_runner.environment_registry = FixedRegistry(current)
         run = wait_for_run(client, start(client, code, environment_id=current.id))
 

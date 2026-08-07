@@ -4,6 +4,7 @@ import type { DocumentFormat, DocumentItem, SearchItem } from "../document/types
 import type { ApiClient } from "../services/api";
 import { DocumentActionsMenu } from "../components/DocumentActionsMenu";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { platform } from "../platform";
 
 const ACCEPTED_EXTENSIONS = new Set(["pdf", "docx", "md", "markdown", "txt", "csv", "tsv", "json", "yaml", "yml", "xml", "html", "css", "js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "h", "hpp", "sql", "log", "ini", "toml", "xlsx", "pptx", "ipynb"]);
 
@@ -90,7 +91,7 @@ function sortDocuments(items: DocumentItem[], mode: SortMode) {
 
 async function sourceCreatedAt(file: File) {
   try {
-    const nativeTime = await window.studypilot?.files?.sourceCreatedAt?.(file);
+    const nativeTime = await platform().files.sourceCreatedAt(file);
     if (nativeTime) return nativeTime;
   } catch {
     // Browser builds do not expose native filesystem metadata.
@@ -205,14 +206,13 @@ export function Library({ api, onOpen, onOpenKnowledgeSplit, compact = false, co
     setError("");
     try {
       const artifact = await api.download(`/api/documents/${document.id}/export`, { format });
-      const nativeSave = window.studypilot?.files?.saveToArchive || window.studypilot?.files?.saveExport;
-      if (nativeSave) {
-        const savedPath = await nativeSave({ suggestedName: artifact.filename, bytes: artifact.bytes });
-        if (!savedPath) {
+      const savedPath = await platform().files.saveToArchive({ suggestedName: artifact.filename, bytes: artifact.bytes });
+      if (savedPath) {
+      } else {
+        if (platform().kind !== "web") {
           setImportNotice("已取消导出");
           return;
         }
-      } else {
         const bytes = artifact.bytes.buffer.slice(
           artifact.bytes.byteOffset,
           artifact.bytes.byteOffset + artifact.bytes.byteLength,

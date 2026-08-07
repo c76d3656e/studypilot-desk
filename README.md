@@ -2,7 +2,7 @@
 
 > 本地优先的桌面学习操作系统：把课程、路线、任务、资料、知识图谱、实验和复习组织成一个持续推进的学习工作台。
 
-StudyPilot Desk 使用 Electron、React、FastAPI 与 SQLite 构建，不依赖云端即可使用。数据默认保存在本机，适合管理长期课程、学习路线、知识画布、资料引用、Python 实验和复习统计。
+StudyPilot Desk 使用 Tauri、Rust、React、Python 领域模块与 SQLite 构建；同一套前端可运行于 Web/PWA、桌面安装包和 Tauri Mobile。桌面端由 Rust Actix-Web 提供唯一本地 API，Python 仅作为私有领域 Worker 保留，联网模式可通过可配置 Rust 服务实现多端访问。
 
 ## 项目状态
 
@@ -34,7 +34,7 @@ Windows 双击 `start.bat`，或在 PowerShell 中运行：
 ## 已实现的核心闭环
 
 - 真实 DOCX 路线导入：W1-W24、六阶段、G1-G6、周任务、周交付物、阶段验收与补救规则。
-- 无边框单实例桌面窗口：窗口状态恢复、最大化/还原/最小化/关闭，Electron 统一管理随机端口 FastAPI 子进程。
+- 无边框单实例桌面窗口：窗口状态恢复、最大化/还原/最小化/关闭，Tauri/Rust 统一管理随机端口 Actix-Web API 与私有 Python Worker。
 - 本地 SQLite：全局课程书架、课程主页、多知识笔记本、任务、证据、自由知识画布、资料引用、代码运行、测验、掌握度、复习、项目研究条目和设置；旧数据库自动迁移到当前 schema。
 - 学习驾驶舱：当前周、阶段门、交付契约、任务新增与完成状态。
 - 课程与知识画布：启动先进入全局课程书架，课程主页再统一进入各学习模块；每门课程可创建多个独立知识笔记，概念、纸质便签、可翻面记忆卡、资料引用卡和思维分支可拖动、平移、缩放、自动适合视野、连线与删除；支持文件导入、系统剪贴板图片粘贴和课程级图片持久化。
@@ -49,32 +49,33 @@ Windows 双击 `start.bat`，或在 PowerShell 中运行：
 ## 常用验证命令
 
 ```powershell
+.\.venv\Scripts\python.exe -m ruff check backend scripts
 .\.venv\Scripts\python.exe -m pytest backend/tests -q
+npm.cmd run check:versions
 npm.cmd test
 npm.cmd run typecheck
-npm.cmd run build
-npm.cmd run smoke
-npm.cmd run test:e2e
-.\.venv\Scripts\python.exe scripts\smoke_test.py
+cargo clippy --manifest-path src-tauri\Cargo.toml --workspace --all-targets --locked -- -D warnings
+cargo test --manifest-path src-tauri\Cargo.toml --workspace --all-targets --locked
+npm.cmd run build:tauri
 ```
 
-Electron/Playwright 命令需要桌面会话。详见 [测试报告](docs/TEST_REPORT.md)。
+Tauri 桌面命令需要 Windows 桌面会话；Web 与单元测试可在无界面环境运行。详见 [测试计划](docs/TEST_PLAN.md)。
 
 ## 技术结构
 
 ```text
-backend/          FastAPI、SQLite、领域服务、Python 运行器
-electron/         主进程、预加载桥、窗口与后端生命周期
+backend/          Python 领域服务、SQLite 迁移、文档解析与 Python 运行器
+src-tauri/        Rust 原生壳、Actix-Web 调度、权限与 native-core
 frontend/         React 桌面工作台与设计系统
 data/seeds/       从源 DOCX 生成的结构化路线
 scripts/          路线抽取、开发启动、烟雾测试、演示重置
-tests/            前端、Electron 与 Playwright 测试
+tests/            前端、后端与 Tauri 契约测试
 docs/             产品、架构、安全、测试与导入报告
 ```
 
 ## 数据、安全与隐私
 
-后端仅监听 `127.0.0.1`，每次 Electron 启动生成会话令牌；渲染进程不开 Node.js，只能使用受限 preload API。默认没有遥测、账号或外部 AI 请求。
+桌面端仅 Rust Actix-Web 监听 `127.0.0.1`，每次 Tauri 启动生成会话令牌；Python Worker 不监听 TCP 端口。渲染进程不开 Node.js，原生能力只能通过受限 Rust command 调用。默认没有遥测、账号或外部 AI 请求。
 
 `data/`、`.env`、本地数据库、媒体、备份、虚拟环境、依赖和构建产物不会上传到 GitHub。Python 实验使用本机子进程与资源边界，但不是操作系统级安全沙箱，不应运行不受信任的代码。详见 [安全说明](docs/SECURITY.md)。
 
@@ -86,10 +87,12 @@ docs/             产品、架构、安全、测试与导入报告
 
 - [产品范围](docs/PRODUCT_SCOPE.md)
 - [系统架构](docs/ARCHITECTURE.md)
+- [Tauri 跨端与 Rust 优化计划](docs/TAURI_CROSS_PLATFORM_PLAN.md)
 - [数据模型](docs/DATA_MODEL.md)
 - [设计系统](docs/DESIGN_SYSTEM.md)
 - [安全说明](docs/SECURITY.md)
 - [测试计划](docs/TEST_PLAN.md)
+- [贡献与版本发布](CONTRIBUTING.md)
 - [已知限制](docs/KNOWN_LIMITATIONS.md)
 
 ## 许可证

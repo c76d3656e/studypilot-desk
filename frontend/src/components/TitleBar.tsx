@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { UiLanguage } from "../ui/language";
+import { platform } from "../platform";
 
 export function TitleBar({ language = "zh-CN", navigationCollapsed = false, onExpandNavigation }: {
   language?: UiLanguage;
@@ -19,7 +20,7 @@ export function TitleBar({ language = "zh-CN", navigationCollapsed = false, onEx
 
   return (
     <header className="titlebar">
-      <div className="titlebar__drag">
+      <div className="titlebar__drag" data-tauri-drag-region>
         <span className="brand-mark">SP</span>
         <span className="titlebar__name">StudyPilot Desk</span>
       </div>
@@ -44,11 +45,11 @@ export function TitleBar({ language = "zh-CN", navigationCollapsed = false, onEx
           </button>
         )}
       </div>
-      <div className="titlebar__drag-fill" aria-hidden="true" />
-      <div className="window-actions">
-        <button aria-label={english ? "Minimize window" : "最小化窗口"} onClick={() => window.studypilot.window.minimize()}>—</button>
-        <button aria-label={english ? "Maximize or restore window" : "最大化或还原窗口"} onClick={() => window.studypilot.window.toggleMaximize()}>□</button>
-        <button className="window-close" aria-label={english ? "Close window" : "关闭窗口"} onClick={() => window.studypilot.window.close()}>×</button>
+      <div className="titlebar__drag-fill" data-tauri-drag-region aria-hidden="true" />
+      <div className="window-actions" hidden={!platform().window.controlsAvailable}>
+        <button aria-label={english ? "Minimize window" : "最小化窗口"} onClick={() => void platform().window.minimize()}>—</button>
+        <button aria-label={english ? "Maximize or restore window" : "最大化或还原窗口"} onClick={() => void platform().window.toggleMaximize()}>□</button>
+        <button className="window-close" aria-label={english ? "Close window" : "关闭窗口"} onClick={() => void platform().window.close()}>×</button>
       </div>
     </header>
   );
