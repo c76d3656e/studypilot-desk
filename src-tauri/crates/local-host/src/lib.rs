@@ -7,6 +7,7 @@
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use futures_channel::mpsc as futures_mpsc;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -19,7 +20,7 @@ use std::time::Duration;
 
 mod router;
 
-use router::{parse_query, route, Route};
+use router::{parse_query, raw_route, route, stream_route, Route};
 
 const MAX_REQUEST_BYTES: usize = 96 * 1024 * 1024;
 const SESSION_HEADER: &str = "x-studypilot-session";
@@ -167,6 +168,7 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         route("PATCH", "/api/agent/threads/{thread_id}", "agent.threads.update"),
         route("DELETE", "/api/agent/threads/{thread_id}", "agent.threads.delete"),
         route("GET", "/api/python/runs", "python.runs.list"),
+        route("GET", "/api/python", "python.runs.list"),
         route("GET", "/api/python/runs/{run_id}", "python.runs.get"),
         route("POST", "/api/python/runs/{run_id}/stop", "python.runs.stop"),
         route("GET", "/api/speech/engine", "speech.engine"),
@@ -212,6 +214,24 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         route("POST", "/api/quizzes/grade", "quiz.grade"),
         route("PUT", "/api/agent/providers/{provider_id}", "agent.providers.update"),
         route("DELETE", "/api/agent/providers/{provider_id}", "agent.providers.delete"),
+        route("POST", "/api/agent/providers/{provider_id}/test", "agent.providers.test"),
+        route("POST", "/api/agent/providers/{provider_id}/diagnostics", "agent.providers.diagnostics"),
+        route("POST", "/api/agent/threads/{thread_id}/generate-title", "agent.threads.generate_title"),
+        route("POST", "/api/agent/threads/{thread_id}/messages", "agent.threads.messages.create"),
+        stream_route(
+            "POST",
+            "/api/agent/threads/{thread_id}/messages/stream",
+            "agent.messages.stream",
+        ),
+        route("POST", "/api/agent/action-plans/{plan_id}/confirm", "agent.actions.confirm"),
+        route("POST", "/api/agent/action-plans/{plan_id}/cancel", "agent.actions.cancel"),
+        route("POST", "/api/agent/action-plans/{plan_id}/undo", "agent.actions.undo"),
+        route("POST", "/api/courses/{course_id}/roadmap/generate", "courses.roadmap.generate"),
+        // Multipart uploads: raw body forwarded to the domain callable.
+        raw_route("POST", "/api/settings/wallpaper", "settings.wallpaper.upload"),
+        raw_route("POST", "/api/documents/import", "documents.import"),
+        raw_route("POST", "/api/backups/restore", "backups.restore"),
+        raw_route("POST", "/api/media/images", "media.images.upload"),
         // Generic collections (validated against GENERIC_COLLECTIONS in Python).
         route("GET", "/api/{collection}", "generic.list"),
         route("POST", "/api/{collection}", "generic.create"),
@@ -245,7 +265,6 @@ pub struct LocalApiConfig {
 /// protocol-neutral request so a Rust implementation can replace a Python
 /// route group without changing the renderer or HTTP lifecycle code.
 pub trait RouteAdapter: Send + Sync {
-    fn dispatch(&self, request: AdapterRequest) -> Result<AdapterResponse, String>;
     /// Dispatch to a named domain callable (Rust owns routing).  Adapters that
     /// do not support native function dispatch return an error by default.
     fn dispatch_call(
@@ -255,14 +274,15 @@ pub trait RouteAdapter: Send + Sync {
     ) -> Result<AdapterResponse, String> {
         Err("native routing not supported by this adapter".to_string())
     }
-}
-
-#[derive(Clone)]
-pub struct AdapterRequest {
-    pub method: String,
-    pub path_and_query: String,
-    pub headers: Vec<(String, String)>,
-    pub body: Vec<u8>,
+    /// Open a streaming domain call that relays NDJSON event lines back to the
+    /// caller.  The returned channel ends with `StreamEvent::Done`.
+    fn stream_call(
+        &self,
+        _function: &str,
+        _args: serde_json::Value,
+    ) -> Result<mpsc::Receiver<StreamEvent>, String> {
+        Err("native streaming not supported by this adapter".to_string())
+    }
 }
 
 pub struct AdapterResponse {
@@ -297,7 +317,6 @@ impl Drop for LocalApiHandle {
 #[derive(Clone)]
 struct LocalApiState {
     public_session_token: String,
-    worker_session_token: String,
     adapter: Arc<dyn RouteAdapter>,
 }
 
@@ -306,7 +325,6 @@ pub fn start(config: LocalApiConfig) -> Result<LocalApiHandle, String> {
     let worker = PythonWorker::start(config.python_worker)?;
     let state = LocalApiState {
         public_session_token: config.public_session_token,
-        worker_session_token: worker.session_token(),
         adapter: Arc::new(worker.clone()),
     };
     let (ready_tx, ready_rx) = mpsc::sync_channel(1);
@@ -377,56 +395,66 @@ async fn dispatch(
         return error_response(401, "UNAUTHORIZED", "本地会话令牌无效");
     }
 
-    // Native Rust routing: if this method+path is in the route table, call the
-    // matching domain function directly.  Otherwise fall back to the legacy
-    // Python passthrough while the migration completes.
+    // Native Rust routing: every route is owned by Rust now.  Unmatched
+    // methods/paths are a 404 (the generic /api/{collection} routes handle the
+    // document-style collections; anything else is not an endpoint).
     if let Some((matched, path_params)) =
         router::match_route(request.method().as_str(), request.path(), &ROUTES)
     {
+        if matched.streaming {
+            return dispatch_stream(request, body, state, matched, &path_params).await;
+        }
         return dispatch_native(request, body, state, matched, &path_params).await;
     }
 
-    let mut headers: Vec<(String, String)> = request
-        .headers()
-        .iter()
-        .filter_map(|(name, value)| {
-            let name = name.as_str();
-            if is_hop_by_hop(name) || name.eq_ignore_ascii_case(SESSION_HEADER) {
-                return None;
-            }
-            value
-                .to_str()
-                .ok()
-                .map(|value| (name.to_owned(), value.to_owned()))
-        })
-        .collect();
-    // The public token never reaches Python.  This private token is only used
-    // as defence in depth for the in-process protocol adapter.
-    headers.push((
-        SESSION_HEADER.to_owned(),
-        state.worker_session_token.clone(),
-    ));
-    let target = AdapterRequest {
-        method: request.method().as_str().to_owned(),
-        path_and_query: request
-            .uri()
-            .path_and_query()
-            .map(|value| value.as_str().to_owned())
-            .unwrap_or_else(|| "/".to_owned()),
-        headers,
-        body: body.to_vec(),
+    error_response(404, "ROUTE_NOT_FOUND", "接口不存在")
+}
+
+/// Route handler for the routes Rust owns natively.  Parses path/query/body
+/// and calls the Python domain function by name over the worker bridge.
+async fn dispatch_native(
+    request: HttpRequest,
+    body: web::Bytes,
+    state: web::Data<LocalApiState>,
+    matched: &'static Route,
+    path_params: &HashMap<String, String>,
+) -> HttpResponse {
+    let query = parse_query(request.query_string());
+    let body_value: serde_json::Value = if matched.raw_body {
+        serde_json::Value::String(BASE64.encode(&body))
+    } else if body.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null)
     };
+    let mut query = parse_query(request.query_string());
+    if matched.raw_body {
+        let content_type = request
+            .headers()
+            .get(actix_web::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+        query.insert("content_type".to_string(), serde_json::Value::String(content_type));
+    }
+    let args = serde_json::json!({
+        "path": path_params,
+        "query": query,
+        "body": body_value,
+    });
     let adapter = state.adapter.clone();
-    match web::block(move || adapter.dispatch(target)).await {
+    let function = matched.function;
+    let result = web::block(move || adapter.dispatch_call(function, args)).await;
+    match result {
         Ok(Ok(response)) => adapter_response(response),
         Ok(Err(error)) => error_response(502, "PYTHON_ADAPTER_UNAVAILABLE", &error),
         Err(error) => error_response(500, "LOCAL_API_ERROR", &error.to_string()),
     }
 }
 
-/// Route handler for the routes Rust owns natively.  Parses path/query/body
-/// and calls the Python domain function by name over the worker bridge.
-async fn dispatch_native(
+/// Streams NDJSON events from a Python generator-backed domain callable to the
+/// HTTP client.  Events arrive on the worker bridge as they are produced.
+async fn dispatch_stream(
     request: HttpRequest,
     body: web::Bytes,
     state: web::Data<LocalApiState>,
@@ -446,12 +474,31 @@ async fn dispatch_native(
     });
     let adapter = state.adapter.clone();
     let function = matched.function;
-    let result = web::block(move || adapter.dispatch_call(function, args)).await;
-    match result {
-        Ok(Ok(response)) => adapter_response(response),
-        Ok(Err(error)) => error_response(502, "PYTHON_ADAPTER_UNAVAILABLE", &error),
-        Err(error) => error_response(500, "LOCAL_API_ERROR", &error.to_string()),
-    }
+    let receiver = match web::block(move || adapter.stream_call(function, args)).await {
+        Ok(Ok(receiver)) => receiver,
+        Ok(Err(error)) => return error_response(502, "PYTHON_ADAPTER_UNAVAILABLE", &error),
+        Err(error) => return error_response(500, "LOCAL_API_ERROR", &error.to_string()),
+    };
+    let (tx, rx) = futures_mpsc::unbounded::<web::Bytes>();
+    std::thread::spawn(move || {
+        loop {
+            match receiver.recv_timeout(Duration::from_secs(600)) {
+                Ok(StreamEvent::Event(line)) => {
+                    if tx.unbounded_send(web::Bytes::from(line + "\n")).is_err() {
+                        break;
+                    }
+                }
+                Ok(StreamEvent::Done) => break,
+                Err(_) => break,
+            }
+        }
+    });
+    use futures_util::StreamExt;
+    HttpResponse::Ok()
+        .content_type("application/x-ndjson; charset=utf-8")
+        .insert_header(("cache-control", "no-cache, no-transform"))
+        .insert_header(("x-content-type-options", "nosniff"))
+        .streaming(rx.map(|bytes| Result::<web::Bytes, actix_web::Error>::Ok(bytes)))
 }
 
 fn adapter_response(response: AdapterResponse) -> HttpResponse {
@@ -511,10 +558,10 @@ struct PythonWorker {
 }
 
 struct PythonWorkerInner {
-    session_token: String,
     stdin: Mutex<ChildStdin>,
     child: Mutex<Option<Child>>,
     pending: Mutex<HashMap<u64, mpsc::SyncSender<Result<WireResponse, String>>>>,
+    streams: Mutex<HashMap<u64, mpsc::SyncSender<StreamEvent>>>,
     next_id: AtomicU64,
 }
 
@@ -524,6 +571,21 @@ struct WireResponse {
     status: u16,
     headers: Vec<(String, String)>,
     body_base64: String,
+}
+
+/// A frame arriving from the worker on stdout: either a normal request
+/// response or a streaming event frame.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum WorkerFrame {
+    Response(WireResponse),
+    Event { id: u64, event: String },
+}
+
+/// Events delivered to a streaming caller.
+pub enum StreamEvent {
+    Event(String),
+    Done,
 }
 
 impl PythonWorker {
@@ -558,10 +620,10 @@ impl PythonWorker {
             .take()
             .ok_or_else(|| "Python 领域 Worker 没有标准输出".to_string())?;
         let inner = Arc::new(PythonWorkerInner {
-            session_token: config.session_token,
             stdin: Mutex::new(stdin),
             child: Mutex::new(Some(child)),
             pending: Mutex::new(HashMap::new()),
+            streams: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
         });
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
@@ -583,10 +645,6 @@ impl PythonWorker {
                 Err(format!("Python 领域 Worker 启动超时：{error}"))
             }
         }
-    }
-
-    fn session_token(&self) -> String {
-        self.inner.session_token.clone()
     }
 
     /// Send one JSON frame to the worker on stdin and await its response.
@@ -639,6 +697,44 @@ impl PythonWorker {
         }
     }
 
+    /// Send a streaming request and return a channel of NDJSON event lines.
+    /// The channel ends with `StreamEvent::Done`.
+    fn stream_call_impl(
+        &self,
+        function: &str,
+        args: serde_json::Value,
+    ) -> Result<mpsc::Receiver<StreamEvent>, String> {
+        let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
+        let (sender, receiver) = mpsc::sync_channel(64);
+        self.inner
+            .streams
+            .lock()
+            .map_err(|_| "Python Worker 流队列损坏".to_string())?
+            .insert(id, sender);
+        let wire = serde_json::json!({
+            "id": id,
+            "kind": "stream",
+            "function": function,
+            "args": args,
+        });
+        let encoded = wire.to_string();
+        let write_result = (|| {
+            let mut stdin = self
+                .inner
+                .stdin
+                .lock()
+                .map_err(|_| std::io::Error::other("Python Worker 输入已关闭"))?;
+            stdin.write_all(encoded.as_bytes())?;
+            stdin.write_all(b"\n")?;
+            stdin.flush()
+        })();
+        if let Err(error) = write_result {
+            let _ = self.inner.streams.lock().map(|mut streams| streams.remove(&id));
+            return Err(format!("无法向 Python Worker 发送流式请求：{error}"));
+        }
+        Ok(receiver)
+    }
+
     fn stop(&self) {
         if let Ok(mut child) = self.inner.child.lock() {
             if let Some(process) = child.as_mut() {
@@ -651,16 +747,6 @@ impl PythonWorker {
 }
 
 impl RouteAdapter for PythonWorker {
-    fn dispatch(&self, request: AdapterRequest) -> Result<AdapterResponse, String> {
-        let wire = serde_json::json!({
-            "method": request.method,
-            "path_and_query": request.path_and_query,
-            "headers": request.headers,
-            "body_base64": BASE64.encode(request.body),
-        });
-        self.send_frame(wire)
-    }
-
     fn dispatch_call(
         &self,
         function: &str,
@@ -672,6 +758,14 @@ impl RouteAdapter for PythonWorker {
             "args": args,
         });
         self.send_frame(wire)
+    }
+
+    fn stream_call(
+        &self,
+        function: &str,
+        args: serde_json::Value,
+    ) -> Result<mpsc::Receiver<StreamEvent>, String> {
+        self.stream_call_impl(function, args)
     }
 }
 
@@ -701,10 +795,29 @@ fn read_worker_responses(
             let _ = ready_tx.send(Err(format!("Python Worker 未就绪：{line}")));
             break;
         }
-        if let Ok(response) = serde_json::from_str::<WireResponse>(&line) {
-            if let Ok(mut pending) = inner.pending.lock() {
-                if let Some(sender) = pending.remove(&response.id) {
-                    let _ = sender.send(Ok(response));
+        if let Ok(frame) = serde_json::from_str::<WorkerFrame>(&line) {
+            match frame {
+                WorkerFrame::Response(response) => {
+                    let id = response.id;
+                    if let Ok(mut pending) = inner.pending.lock() {
+                        if let Some(sender) = pending.remove(&id) {
+                            let _ = sender.send(Ok(response));
+                            continue;
+                        }
+                    }
+                    // Not a pending request: treat as stream completion.
+                    if let Ok(mut streams) = inner.streams.lock() {
+                        if let Some(sender) = streams.remove(&id) {
+                            let _ = sender.send(StreamEvent::Done);
+                        }
+                    }
+                }
+                WorkerFrame::Event { id, event } => {
+                    if let Ok(streams) = inner.streams.lock() {
+                        if let Some(sender) = streams.get(&id) {
+                            let _ = sender.send(StreamEvent::Event(event));
+                        }
+                    }
                 }
             }
         }
@@ -728,25 +841,31 @@ mod tests {
     struct EchoAdapter;
 
     impl RouteAdapter for EchoAdapter {
-        fn dispatch(&self, request: AdapterRequest) -> Result<AdapterResponse, String> {
+        fn dispatch_call(
+            &self,
+            function: &str,
+            _args: serde_json::Value,
+        ) -> Result<AdapterResponse, String> {
             Ok(AdapterResponse {
                 status: 200,
                 headers: vec![("content-type".into(), "application/json".into())],
-                body: serde_json::to_vec(&request.headers).unwrap(),
+                body: format!(r#"{{"function":"{function}"}}"#).into_bytes(),
             })
+        }
+    }
+
+    fn state() -> LocalApiState {
+        LocalApiState {
+            public_session_token: "public-token".into(),
+            adapter: Arc::new(EchoAdapter),
         }
     }
 
     #[actix_web::test]
     async fn rejects_missing_public_session_token() {
-        let state = LocalApiState {
-            public_session_token: "public-token".into(),
-            worker_session_token: "worker-token".into(),
-            adapter: Arc::new(EchoAdapter),
-        };
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(state))
+                .app_data(web::Data::new(state()))
                 .app_data(web::PayloadConfig::new(MAX_REQUEST_BYTES))
                 .default_service(web::route().to(dispatch)),
         )
@@ -760,15 +879,10 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn hides_public_session_and_injects_private_worker_session() {
-        let state = LocalApiState {
-            public_session_token: "public-token".into(),
-            worker_session_token: "worker-token".into(),
-            adapter: Arc::new(EchoAdapter),
-        };
+    async fn routes_native_path_to_domain_callable() {
         let app = test::init_service(
             App::new()
-                .app_data(web::Data::new(state))
+                .app_data(web::Data::new(state()))
                 .app_data(web::PayloadConfig::new(MAX_REQUEST_BYTES))
                 .default_service(web::route().to(dispatch)),
         )
@@ -776,17 +890,33 @@ mod tests {
         let response = test::call_service(
             &app,
             test::TestRequest::get()
-                .uri("/api/not-native/1")
+                .uri("/api/courses")
                 .insert_header((SESSION_HEADER, "public-token"))
                 .to_request(),
         )
         .await;
         assert_eq!(response.status(), StatusCode::OK);
         let body = test::read_body(response).await;
-        let headers: Vec<(String, String)> = serde_json::from_slice(&body).unwrap();
-        assert!(headers
-            .iter()
-            .any(|(name, value)| name == SESSION_HEADER && value == "worker-token"));
-        assert!(!headers.iter().any(|(_, value)| value == "public-token"));
+        assert!(String::from_utf8_lossy(&body).contains(r#""function":"courses.list""#));
+    }
+
+    #[actix_web::test]
+    async fn unknown_path_returns_404() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(state()))
+                .app_data(web::PayloadConfig::new(MAX_REQUEST_BYTES))
+                .default_service(web::route().to(dispatch)),
+        )
+        .await;
+        let response = test::call_service(
+            &app,
+            test::TestRequest::get()
+                .uri("/api/not-a-route/1/extra")
+                .insert_header((SESSION_HEADER, "public-token"))
+                .to_request(),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

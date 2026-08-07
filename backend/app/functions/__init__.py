@@ -28,3 +28,4 @@ from . import documents_rev  # noqa: E402,F401
 from . import agent  # noqa: E402,F401
 from . import runtime  # noqa: E402,F401
 from . import files  # noqa: E402,F401
+from . import uploads  # noqa: E402,F401

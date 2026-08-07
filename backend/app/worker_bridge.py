@@ -1,16 +1,8 @@
 """Private stdio adapter for the Rust-owned desktop HTTP host.
 
-This process deliberately does not import Uvicorn or bind a socket.  Rust
-Actix-Web owns the public HTTP interface and routes every request.
-
-Two dispatch paths exist during the Rust gateway migration:
-
-* ``kind == "call"`` — Rust already parsed the route, query and body.  Python
-  runs the plain domain function by name (no FastAPI/Starlette involved).
-* otherwise (legacy HTTP envelope) — used as a temporary fallback for route
-  groups that are not yet migrated to native Rust routing.  This path runs the
-  existing FastAPI application object in-process and is removed once migration
-  completes.
+Rust Actix-Web owns every HTTP route, auth and request parsing.  This process
+runs plain domain functions (see ``backend.app.functions``) — there is no
+FastAPI, Starlette or ASGI routing involved.
 """
 
 from __future__ import annotations
@@ -20,68 +12,16 @@ import base64
 import json
 import multiprocessing
 import os
+import queue
 import sys
 from typing import Any
 
-from backend.app.domain import DomainContext, build_context, call as domain_call
-
-# Legacy FastAPI fallback (being removed as route groups migrate to Rust).
-from backend.app.main import create_app
-
-
-async def invoke(app: Any, request: dict[str, Any]) -> dict[str, Any]:
-    from urllib.parse import urlsplit
-
-    parsed = urlsplit(request["path_and_query"])
-    raw_body = base64.b64decode(request.get("body_base64", ""))
-    headers = [
-        (str(name).encode("latin-1"), str(value).encode("latin-1"))
-        for name, value in request.get("headers", [])
-    ]
-    scope = {
-        "type": "http",
-        "asgi": {"version": "3.0", "spec_version": "2.3"},
-        "http_version": "1.1",
-        "scheme": "http",
-        "method": request["method"],
-        "path": parsed.path or "/",
-        "raw_path": (parsed.path or "/").encode("utf-8"),
-        "query_string": parsed.query.encode("utf-8"),
-        "root_path": "",
-        "headers": headers,
-        "client": ("127.0.0.1", 0),
-        "server": ("127.0.0.1", 0),
-    }
-    sent_request = False
-    status = 500
-    response_headers: list[tuple[str, str]] = []
-    chunks: list[bytes] = []
-
-    async def receive() -> dict[str, Any]:
-        nonlocal sent_request
-        if sent_request:
-            return {"type": "http.disconnect"}
-        sent_request = True
-        return {"type": "http.request", "body": raw_body, "more_body": False}
-
-    async def send(message: dict[str, Any]) -> None:
-        nonlocal status, response_headers
-        if message["type"] == "http.response.start":
-            status = message["status"]
-            response_headers = [
-                (name.decode("latin-1"), value.decode("latin-1"))
-                for name, value in message.get("headers", [])
-            ]
-        elif message["type"] == "http.response.body":
-            chunks.append(message.get("body", b""))
-
-    await app(scope, receive, send)
-    return {
-        "id": request["id"],
-        "status": status,
-        "headers": response_headers,
-        "body_base64": base64.b64encode(b"".join(chunks)).decode("ascii"),
-    }
+from backend.app.domain import (
+    DOMAIN_FUNCTIONS,
+    DomainContext,
+    build_context,
+    call as domain_call,
+)
 
 
 def to_wire(request_id: int, status: int, headers: list[tuple[str, str]], body: bytes) -> dict[str, Any]:
@@ -93,13 +33,61 @@ def to_wire(request_id: int, status: int, headers: list[tuple[str, str]], body: 
     }
 
 
+async def handle_stream(payload: dict[str, Any], ctx: DomainContext, write: Any) -> None:
+    """Run a generator-backed domain function and stream its events as NDJSON.
+
+    Each yielded event dict is forwarded to Rust as ``{"id":..., "event":...}``;
+    a final response frame signals the end of the stream.
+    """
+    request_id = payload.get("id", 0)
+    function = payload.get("function", "")
+    fn = DOMAIN_FUNCTIONS.get(function)
+    if fn is None:
+        body = json.dumps(
+            {"error": {"code": "ROUTE_NOT_FOUND", "message": f"领域函数不存在：{function}"}},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        await write(to_wire(request_id, 404, [("content-type", "application/json; charset=utf-8")], body))
+        return
+
+    events: queue.Queue[Any] = queue.Queue()
+
+    def producer() -> None:
+        try:
+            for event in fn(ctx, **(payload.get("args") or {})):
+                events.put(event)
+        except Exception as exc:  # pragma: no cover - stream integrity
+            events.put(
+                {"type": "error", "error": {"code": "AGENT_STREAM_ERROR", "message": str(exc)}}
+            )
+        finally:
+            events.put(None)
+
+    await asyncio.to_thread(producer)
+    while True:
+        event = await asyncio.to_thread(events.get)
+        if event is None:
+            break
+        await write({"id": request_id, "event": event})
+    await write(
+        {
+            "id": request_id,
+            "status": 200,
+            "headers": [
+                ("content-type", "application/x-ndjson; charset=utf-8"),
+                ("cache-control", "no-cache, no-transform"),
+                ("x-content-type-options", "nosniff"),
+            ],
+            "body_base64": "",
+        }
+    )
+
+
 async def serve() -> None:
     ctx = build_context(
         os.environ.get("STUDYPILOT_DATA_DIR", "."),
         os.environ.get("STUDYPILOT_SESSION_TOKEN", ""),
     )
-    # Legacy fallback app; lifespan start also (idempotently) initialises the DB.
-    app = create_app()
     write_lock = asyncio.Lock()
 
     async def write(payload: dict[str, Any]) -> None:
@@ -108,53 +96,65 @@ async def serve() -> None:
             await asyncio.to_thread(sys.stdout.write, encoded + "\n")
             await asyncio.to_thread(sys.stdout.flush)
 
-    async with app.router.lifespan_context(app):
-        await write({"kind": "ready"})
-        tasks: set[asyncio.Task[None]] = set()
+    await write({"kind": "ready"})
+    tasks: set[asyncio.Task[None]] = set()
 
-        async def handle(payload: dict[str, Any]) -> None:
-            try:
-                if payload.get("kind") == "call":
-                    result = await asyncio.to_thread(
-                        domain_call,
-                        ctx,
-                        payload.get("function", ""),
-                        payload.get("args") or {},
-                    )
-                    response = to_wire(
+    async def handle(payload: dict[str, Any]) -> None:
+        try:
+            kind = payload.get("kind")
+            if kind == "call":
+                result = await asyncio.to_thread(
+                    domain_call,
+                    ctx,
+                    payload.get("function", ""),
+                    payload.get("args") or {},
+                )
+                await write(
+                    to_wire(
                         payload.get("id", 0),
                         result.status,
                         result.headers,
                         result.body,
                     )
-                else:
-                    response = await invoke(app, payload)
-                await write(response)
-            except Exception as error:  # pragma: no cover - defence for protocol integrity
-                await write(
-                    {
-                        "id": payload.get("id", 0),
-                        "status": 500,
-                        "headers": [("content-type", "application/json; charset=utf-8")],
-                        "body_base64": base64.b64encode(
-                            json.dumps(
-                                {"error": {"code": "PYTHON_ADAPTER_ERROR", "message": str(error)}},
-                                ensure_ascii=False,
-                            ).encode("utf-8")
-                        ).decode("ascii"),
-                    }
                 )
+            elif kind == "stream":
+                await handle_stream(payload, ctx, write)
+            else:
+                body = json.dumps(
+                    {"error": {"code": "BAD_REQUEST", "message": "未知的协议消息"}},
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                await write(
+                    to_wire(
+                        payload.get("id", 0),
+                        400,
+                        [("content-type", "application/json; charset=utf-8")],
+                        body,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - defence for protocol integrity
+            await write(
+                to_wire(
+                    payload.get("id", 0),
+                    500,
+                    [("content-type", "application/json; charset=utf-8")],
+                    json.dumps(
+                        {"error": {"code": "PYTHON_ADAPTER_ERROR", "message": str(error)}},
+                        ensure_ascii=False,
+                    ).encode("utf-8"),
+                )
+            )
 
-        while line := await asyncio.to_thread(sys.stdin.buffer.readline):
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            task = asyncio.create_task(handle(payload))
-            tasks.add(task)
-            task.add_done_callback(tasks.discard)
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+    while line := await asyncio.to_thread(sys.stdin.buffer.readline):
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        task = asyncio.create_task(handle(payload))
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def main() -> None:

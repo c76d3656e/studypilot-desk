@@ -10,6 +10,11 @@ pub struct Route {
     pub method: &'static str,
     pub segments: Vec<Segment>,
     pub function: &'static str,
+    /// When true the raw request body is forwarded (base64) instead of being
+    /// parsed as JSON — used for multipart uploads.
+    pub raw_body: bool,
+    /// When true the route streams NDJSON events back to the caller.
+    pub streaming: bool,
 }
 
 pub enum Segment {
@@ -18,6 +23,35 @@ pub enum Segment {
 }
 
 pub fn route(method: &'static str, pattern: &'static str, function: &'static str) -> Route {
+    route_with(method, pattern, function, false, false)
+}
+
+/// A route that forwards the raw multipart body (base64) to the domain
+/// callable instead of parsing it as JSON.
+pub fn raw_route(
+    method: &'static str,
+    pattern: &'static str,
+    function: &'static str,
+) -> Route {
+    route_with(method, pattern, function, true, false)
+}
+
+/// A route whose domain callable yields NDJSON events that are streamed back.
+pub fn stream_route(
+    method: &'static str,
+    pattern: &'static str,
+    function: &'static str,
+) -> Route {
+    route_with(method, pattern, function, false, true)
+}
+
+fn route_with(
+    method: &'static str,
+    pattern: &'static str,
+    function: &'static str,
+    raw_body: bool,
+    streaming: bool,
+) -> Route {
     Route {
         method,
         segments: pattern
@@ -29,6 +63,8 @@ pub fn route(method: &'static str, pattern: &'static str, function: &'static str
             })
             .collect(),
         function,
+        raw_body,
+        streaming,
     }
 }
 

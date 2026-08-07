@@ -178,6 +178,22 @@ def courses_roadmap(
     return ok(ctx.repository.roadmap(_int((path or {}).get("course_id"), "course_id")))
 
 
+@register("courses.roadmap.generate")
+def courses_roadmap_generate(
+    ctx: DomainContext, path: dict[str, Any] | None = None,
+    query: dict[str, Any] | None = None, body: Any = None,
+) -> DomainResult:
+    from ..schemas import RoadmapGenerate
+
+    payload = RoadmapGenerate(**(body or {}))
+    return ok(
+        ctx.agent.generate_course_roadmap(
+            _int((path or {}).get("course_id"), "course_id"),
+            payload.model_dump(),
+        )
+    )
+
+
 @register("roadmap")
 def roadmap(
     ctx: DomainContext, path: dict[str, Any] | None = None,
