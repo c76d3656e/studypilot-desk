@@ -4,6 +4,19 @@
 
 StudyPilot Desk 使用 Tauri、Rust、React、Python 领域模块与 SQLite 构建；同一套前端可运行于 Web/PWA、桌面安装包和 Tauri Mobile。桌面端由 Rust Actix-Web 提供唯一本地 API，Python 仅作为私有领域 Worker 保留，联网模式可通过可配置 Rust 服务实现多端访问。
 
+## 获取应用
+
+优先从 [GitHub Releases](https://github.com/c76d3656e/studypilot-desk/releases) 下载与系统匹配的安装包。Windows 用户下载 `StudyPilot Desk_*_x64-setup.exe` 后双击安装；首次运行会在本机创建应用数据目录，不需要账号或云端服务。
+
+| 使用方式 | 适用场景 | 入口 |
+| --- | --- | --- |
+| Windows 安装包 | 日常离线学习 | GitHub Release 的 NSIS `*.exe` |
+| Web/PWA 开发服务 | 浏览器验证与 Web 调试 | `npm run dev:web` |
+| Tauri Desktop 开发模式 | 原生窗口与本地 API 调试 | `npm run dev` |
+| Android/iOS | 移动端适配开发 | `npm run tauri:android:init` / `npm run tauri:ios:init` |
+
+> Windows 未签名安装包可能显示 SmartScreen 提示；请只从本仓库 Release 下载。移动端初始化仍分别需要 Android SDK/JDK 与 macOS/Xcode。
+
 ## 项目状态
 
 - 桌面端核心学习闭环、课程书架、知识笔记、资料书架、实验室、统计与备份已经可用。
@@ -29,6 +42,13 @@ Windows 双击 `start.bat`，或在 PowerShell 中运行：
 
 ```powershell
 .\reset_demo.bat
+```
+
+仅启动浏览器版：
+
+```powershell
+npm install
+npm run dev:web
 ```
 
 ## 已实现的核心闭环
@@ -60,6 +80,12 @@ npm.cmd run build:tauri
 ```
 
 Tauri 桌面命令需要 Windows 桌面会话；Web 与单元测试可在无界面环境运行。详见 [测试计划](docs/TEST_PLAN.md)。
+
+## 发布与版本
+
+当前发布线为 `0.2.x`。合并到 `main` 后，Release Please 会维护版本、标签和 GitHub Release；正式发行时会构建 Windows NSIS、Linux DEB/AppImage 与 macOS DMG。每个 Release 正文会列出主要变更、兼容性说明、已知限制和可下载资产。
+
+提交版本相关改动前，请先运行 `npm run check:versions`，确保 `package.json`、Rust、Tauri 和 Python 的版本保持一致。完整流程见 [贡献与版本发布](CONTRIBUTING.md)。
 
 ## 技术结构
 
@@ -94,6 +120,7 @@ docs/             产品、架构、安全、测试与导入报告
 - [测试计划](docs/TEST_PLAN.md)
 - [贡献与版本发布](CONTRIBUTING.md)
 - [已知限制](docs/KNOWN_LIMITATIONS.md)
+- [v0.2.0 发布说明](docs/releases/v0.2.0.md)
 
 ## 许可证
 
