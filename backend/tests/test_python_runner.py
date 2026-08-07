@@ -173,11 +173,16 @@ def test_python_runner_drains_large_output_incrementally_without_communicate(
 def test_python_runner_uses_selected_environment_and_persists_snapshot(
     tmp_path, monkeypatch
 ) -> None:
+    interpreter_path = (
+        "C:/fake-conda/python.exe"
+        if os.name == "nt"
+        else "/opt/fake-conda/bin/python"
+    )
     selected = PythonEnvironment(
         id="conda-ml",
         label="ML · Python 3.12.4",
         version="3.12.4",
-        path="C:/fake-conda/python.exe",
+        path=interpreter_path,
         kind="conda",
         current=False,
     )
@@ -214,13 +219,16 @@ def test_python_runner_uses_selected_environment_and_persists_snapshot(
     assert history[0]["environment_id"] == selected.id
     assert history[0]["interpreter_path"] == selected.path
     child_path = popen_calls[0][1]["env"]["PATH"]
-    expected_prefix = os.pathsep.join(
+    expected_entries = (
         [
             "C:\\fake-conda",
             "C:\\fake-conda\\Scripts",
             "C:\\fake-conda\\Library\\bin",
         ]
+        if os.name == "nt"
+        else ["/opt/fake-conda/bin"]
     )
+    expected_prefix = os.pathsep.join(expected_entries)
     assert child_path.lower().startswith(expected_prefix.lower())
 
 

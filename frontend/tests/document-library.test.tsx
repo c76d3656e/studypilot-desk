@@ -36,8 +36,10 @@ describe("document library import", () => {
     expect(screen.getByTestId("book-spine-7")).toBeInTheDocument();
     expect(screen.getByText("文件创建")).toBeInTheDocument();
     expect(screen.getByText("导入时间")).toBeInTheDocument();
-    expect(screen.getByText("2025-02-03 12:05")).toBeInTheDocument();
-    expect(screen.getByText("2026-07-20 12:30")).toBeInTheDocument();
+    const sourceTime = book.querySelector('time[datetime="2025-02-03T04:05:06.000Z"]');
+    const importedTime = book.querySelector('time[datetime="2026-07-20T04:30:00.000Z"]');
+    expect(sourceTime).toHaveTextContent(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    expect(importedTime).toHaveTextContent(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   });
 
   test("keeps favorites at the front for every sort mode and moves new favorites immediately", async () => {

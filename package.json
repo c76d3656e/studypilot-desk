@@ -17,6 +17,8 @@
     "check:versions": "node scripts/check-version-sync.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
+    "test:e2e": "npm run build:frontend && playwright test",
+    "preview:e2e": "vite preview --host 127.0.0.1 --port 4173",
     "start:tauri": "tauri dev",
     "tauri:android:init": "tauri android init",
     "tauri:ios:init": "tauri ios init"
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
+    "@playwright/test": "^1.55.0",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
