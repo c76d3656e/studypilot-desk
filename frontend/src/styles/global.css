@@ -8,7 +8,8 @@ html[data-file-drop-active]::before {
   backdrop-filter: blur(18px); pointer-events: none;
 }
 * { box-sizing: border-box; }
-html { font-size: var(--ui-root-font-size, 16px); }
+html { color-scheme: dark; font-size: var(--ui-root-font-size, 16px); }
+html[data-theme="light"] { color-scheme: light; }
 html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 body { position: relative; isolation: isolate; background: var(--bg); color: var(--text); font-size: var(--ui-body-font-size, 0.8125rem); }
 body::before {
@@ -107,6 +108,7 @@ label { display: grid; gap: 7px; color: var(--muted); }
 .warning-message { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 8%, transparent); color: var(--orange); }
 .success-message { border-color: var(--green); background: color-mix(in srgb, var(--green) 8%, transparent); color: var(--green); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.document-workspace-loading { display: grid; min-height: 100%; place-items: center; color: var(--muted); }
 
 /* dashboard */
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, .75fr); gap: 12px; align-items: stretch; }

@@ -341,7 +341,7 @@ export function Library({ api, onOpen, onOpenKnowledgeSplit, compact = false, co
       </section>}
 
       {importNotice && <div role="status" aria-label="资料导入结果" className="library-import-notice">{importNotice}</div>}
-      <form className="search-bar" onSubmit={search}><input aria-label="全文搜索" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索正文、术语或失败案例"/><button>全文检索</button></form>
+      <form className="search-bar" onSubmit={search}><input name="query" autoComplete="off" aria-label="全文搜索" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索正文、术语或失败案例…"/><button>全文检索</button></form>
       {error && <p role="alert" className="error-message">{error}</p>}
       {results.length > 0 && <section className="search-results"><div className="panel-index">检索结果 · {results.length}</div>{results.map((item) => <article key={`${item.document_id}-${item.snippet}`}><strong>{item.title}</strong><p>{item.snippet.replace(/<\/?mark>/g, "")}</p><small>{item.filename}</small></article>)}</section>}
       {documents.length > 0 && <section className="library-controls" aria-label="书架筛选与排序">

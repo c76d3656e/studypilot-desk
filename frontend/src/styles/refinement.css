@@ -831,7 +831,7 @@ body {
   outline: none;
 }
 
-.course-actions-rename input:focus {
+.course-actions-rename input:focus-visible {
   border-color: var(--blue);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 12%, transparent);
 }

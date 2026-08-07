@@ -291,9 +291,9 @@
   color: var(--text);
   font: inherit;
 }
-.vocabulary-toolbar input:focus,
-.vocabulary-add-form input:focus,
-.vocabulary-add-form textarea:focus {
+.vocabulary-toolbar input:focus-visible,
+.vocabulary-add-form input:focus-visible,
+.vocabulary-add-form textarea:focus-visible {
   border-color: color-mix(in srgb, var(--blue) 70%, var(--line));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent);
 }
@@ -456,7 +456,7 @@
   color: var(--text);
   font: 500 1rem var(--display-font-family);
 }
-.language-exercise-card__body input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent); }
+.language-exercise-card__body input:focus-visible { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent); }
 .language-exercise-card button { min-height: 37px; padding: 0 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--text); cursor: pointer; }
 .language-exercise-card button:disabled { cursor: not-allowed; opacity: .5; }
 .language-exercise-card .language-primary-action { border-color: var(--blue); background: var(--blue); color: var(--on-blue); }
@@ -843,7 +843,7 @@
   background: var(--surface-2);
   color: var(--text);
 }
-.language-materials__search input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent); }
+.language-materials__search input:focus-visible { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent); }
 .language-materials__lesson-list { display: grid; gap: 8px; }
 .language-materials__lesson-list > article {
   overflow: hidden;
@@ -897,8 +897,8 @@
 .language-settings-grid article > label:not(.language-toggle) { display: grid; gap: 6px; color: var(--muted); font-size: 0.625rem; }
 .language-settings-grid input:not([type="checkbox"]):not([type="range"]),
 .language-settings-grid select { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--surface-2); color: var(--text); }
-.language-settings-grid input:focus,
-.language-settings-grid select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent); }
+.language-settings-grid input:focus-visible,
+.language-settings-grid select:focus-visible { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent); }
 .language-settings__range { grid-template-columns: 1fr auto; }
 .language-settings__range input { grid-column: 1 / -1; width: 100%; accent-color: var(--blue); }
 .language-settings__audio-test { display: flex; gap: 8px; }

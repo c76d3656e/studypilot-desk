@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavRail, type ViewKey } from "../components/NavRail";
 import { TitleBar } from "../components/TitleBar";
 import { CourseSwitcher } from "../components/CourseSwitcher";
@@ -14,7 +14,6 @@ import { Trash } from "../features/Trash";
 import { GlobalSettings } from "../features/GlobalSettings";
 import { Lab } from "../features/Lab";
 import { Library } from "../features/Library";
-import { DocumentWorkspace } from "../document/DocumentWorkspace";
 import { CourseRoadmap } from "../features/CourseRoadmap";
 import { Settings } from "../features/Settings";
 import { Studio } from "../features/Studio";
@@ -51,6 +50,17 @@ const EMPTY_TODAY: TodayData = {
   phase: { phase: 0, title: "尚未选择课程", gate: "NEW", acceptance: "", start_week: 1, end_week: 1 },
   tasks: [],
 };
+
+// The document workspace includes rich Word, spreadsheet, and Markdown renderers.
+// Keep it out of the boot bundle until the user opens a document.
+const DocumentWorkspace = lazy(async () => {
+  const module = await import("../document/DocumentWorkspace");
+  return { default: module.DocumentWorkspace };
+});
+
+function DocumentWorkspaceLoading() {
+  return <main className="document-workspace-loading" role="status" aria-live="polite">正在打开资料…</main>;
+}
 
 function lastCourseDocumentKey(courseId: number) {
   return `studypilot.course-library.last-document.v1.${courseId}`;
@@ -239,6 +249,7 @@ export function App() {
     const systemDark = typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
     const resolved = theme === "system" ? (systemDark ? "dark" : "light") : theme;
     document.documentElement.dataset.theme = resolved;
+    document.documentElement.style.colorScheme = resolved;
   }
 
   function changeTheme(theme: string) {
@@ -790,18 +801,18 @@ export function App() {
     : <div className="linked-workspace-empty"><span>⌘</span><strong>还没有知识笔记</strong><p>先创建一本知识笔记，再从资料旁边联动查看。</p></div>;
 
   if (route.level === "course" && route.view === "library" && route.documentId) {
-    const documentReader = <DocumentWorkspace
-      key={`document-${route.documentId}-${workspaceEpoch}`}
-      api={api}
-      courseId={route.courseId}
-      documentId={route.documentId}
-      onBack={() => { rememberCourseDocument(route.courseId, null); navigate({ level: "course", courseId: route.courseId, view: "library" }); }}
-      onAgentContextChange={setDocumentAgentContext}
-      courseNavigationOpen={documentNavigationOpen}
-      onCourseNavigationChange={setCourseNavigation}
-      knowledgeSplitOpen={linkedWorkspace === "knowledge"}
-      onKnowledgeSplitChange={(open) => setLinkedWorkspace(open ? "knowledge" : null)}
-    />;
+    const documentReader = <Suspense fallback={<DocumentWorkspaceLoading />}><DocumentWorkspace
+        key={`document-${route.documentId}-${workspaceEpoch}`}
+        api={api}
+        courseId={route.courseId}
+        documentId={route.documentId}
+        onBack={() => { rememberCourseDocument(route.courseId, null); navigate({ level: "course", courseId: route.courseId, view: "library" }); }}
+        onAgentContextChange={setDocumentAgentContext}
+        courseNavigationOpen={documentNavigationOpen}
+        onCourseNavigationChange={setCourseNavigation}
+        knowledgeSplitOpen={linkedWorkspace === "knowledge"}
+        onKnowledgeSplitChange={(open) => setLinkedWorkspace(open ? "knowledge" : null)}
+      /></Suspense>;
     const documentWorkspace = linkedWorkspace === "knowledge"
       ? <StudySplitWorkspace
           primary={documentReader}
@@ -1095,14 +1106,14 @@ export function App() {
         />
     : modulePage;
   const linkedLibrary = linkedDocumentId
-    ? <DocumentWorkspace
+    ? <Suspense fallback={<DocumentWorkspaceLoading />}><DocumentWorkspace
         key={`linked-document-${linkedDocumentId}`}
         api={api}
         courseId={route.level === "course" ? route.courseId : activeCourseId}
         documentId={linkedDocumentId}
         onBack={() => { setLinkedDocumentId(null); setLinkedDocumentContext({ documentIds: [], blockKey: "", selectedText: "", locator: {} }); }}
         onAgentContextChange={setLinkedDocumentContext}
-      />
+      /></Suspense>
     : <Library api={api} courseId={route.level === "course" ? route.courseId : activeCourseId} compact onOpen={(document) => setLinkedDocumentId(document.id)} />;
   const presentedPage = linkedWorkspace === "library" && (workspaceView === "knowledge" || workspaceView === "learning")
     ? <StudySplitWorkspace
