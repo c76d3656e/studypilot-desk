@@ -114,5 +114,5 @@ jobs:
         shell: bash
         run: |
           while IFS= read -r -d '' asset; do
-            gh release upload "$RELEASE_TAG" "$asset" --clobber
+            gh release upload "$RELEASE_TAG" "$asset" --clobber --repo "$GITHUB_REPOSITORY"
           done < <(find release-assets -type f -print0)
