@@ -22,10 +22,9 @@ def main() -> None:
 
     request = {
         "id": 1,
-        "method": "GET",
-        "path_and_query": "/api/health",
-        "headers": [],
-        "body_base64": "",
+        "kind": "call",
+        "function": "health",
+        "args": {"path": {}, "query": {}, "body": None},
     }
     with tempfile.TemporaryDirectory(prefix="studypilot-worker-check-") as data_directory:
         environment = os.environ.copy()
