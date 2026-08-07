@@ -8,7 +8,6 @@ version = "0.2.0"
 description = "Local-first learning operations desktop backend"
 requires-python = ">=3.10"
 dependencies = [
-  "fastapi>=0.116,<1",
   "pydantic>=2.11,<3",
   "python-docx>=1.2,<2",
   "pypdf>=6.14.2,<7",
@@ -20,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "pyinstaller>=6.16,<7",
   "pytest>=9.0.3,<10",
