@@ -7,18 +7,158 @@
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, LazyLock, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+mod router;
+
+use router::{parse_query, route, Route};
+
 const MAX_REQUEST_BYTES: usize = 96 * 1024 * 1024;
 const SESSION_HEADER: &str = "x-studypilot-session";
+
+/// Routes owned natively by Rust.  Each maps to a Python domain callable.
+/// Routes that are not (yet) in this table fall back to the legacy Python
+/// passthrough so the app keeps working during the gateway migration.
+static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
+    vec![
+        route("GET", "/api/health", "health"),
+        route("GET", "/api/system/status", "system.status"),
+        route("GET", "/api/settings", "settings.list"),
+        route("GET", "/api/settings/active-course", "settings.active_course"),
+        route("PUT", "/api/settings/{key}", "settings.update"),
+        route("GET", "/api/courses", "courses.list"),
+        route("POST", "/api/courses", "courses.create"),
+        route("PATCH", "/api/courses/{course_id}", "courses.update"),
+        route("GET", "/api/courses/trash", "courses.trash"),
+        route("POST", "/api/courses/{course_id}/activate", "courses.activate"),
+        route("GET", "/api/courses/{course_id}/home", "courses.home"),
+        route("GET", "/api/courses/{course_id}/stats", "courses.stats"),
+        route("DELETE", "/api/courses/{course_id}", "courses.delete"),
+        route("POST", "/api/courses/{course_id}/restore", "courses.restore"),
+        route("DELETE", "/api/courses/{course_id}/permanent", "courses.purge"),
+        route("GET", "/api/courses/{course_id}/roadmap", "courses.roadmap"),
+        route("GET", "/api/roadmaps", "roadmap"),
+        route("GET", "/api/today", "today"),
+        route("GET", "/api/tasks", "tasks.list"),
+        route("POST", "/api/tasks", "tasks.create"),
+        route("GET", "/api/tasks/{task_id}", "tasks.get"),
+        route("PATCH", "/api/tasks/{task_id}", "tasks.update"),
+        route("DELETE", "/api/tasks/{task_id}", "tasks.delete"),
+        route("POST", "/api/tasks/{task_id}/evidence", "tasks.evidence.add"),
+        route("GET", "/api/courses/{course_id}/documents", "documents.list"),
+        route("GET", "/api/documents", "documents.list"),
+        route("GET", "/api/documents/{document_id}", "documents.get"),
+        route("GET", "/api/documents/{document_id}/content", "documents.content"),
+        route("GET", "/api/search", "search"),
+        route("GET", "/api/library", "library"),
+        route("GET", "/api/knowledge", "knowledge.graph"),
+        route("GET", "/api/knowledge/nodes", "knowledge.nodes.list"),
+        route("POST", "/api/knowledge/nodes", "knowledge.nodes.create"),
+        route("PATCH", "/api/knowledge/nodes/{node_id}", "knowledge.nodes.update"),
+        route("DELETE", "/api/knowledge/nodes/{node_id}", "knowledge.nodes.delete"),
+        route(
+            "GET",
+            "/api/knowledge/nodes/{node_id}/prerequisites",
+            "knowledge.nodes.prerequisites",
+        ),
+        route("POST", "/api/knowledge/edges", "knowledge.edges.create"),
+        route("DELETE", "/api/knowledge/edges/{edge_id}", "knowledge.edges.delete"),
+        route("GET", "/api/mastery", "mastery"),
+        route("GET", "/api/courses/{course_id}/notebooks", "notebooks.list"),
+        route("POST", "/api/courses/{course_id}/notebooks", "notebooks.create"),
+        route(
+            "PATCH",
+            "/api/courses/{course_id}/notebooks/{notebook_id}",
+            "notebooks.update",
+        ),
+        route(
+            "DELETE",
+            "/api/courses/{course_id}/notebooks/{notebook_id}",
+            "notebooks.trash",
+        ),
+        route(
+            "GET",
+            "/api/courses/{course_id}/notebooks/{notebook_id}/graph",
+            "notebooks.graph",
+        ),
+        route(
+            "POST",
+            "/api/courses/{course_id}/notebooks/{notebook_id}/nodes",
+            "notebooks.nodes.create",
+        ),
+        route(
+            "PATCH",
+            "/api/courses/{course_id}/notebooks/{notebook_id}/nodes/{node_id}",
+            "notebooks.nodes.update",
+        ),
+        route(
+            "DELETE",
+            "/api/courses/{course_id}/notebooks/{notebook_id}/nodes/{node_id}",
+            "notebooks.nodes.delete",
+        ),
+        route(
+            "POST",
+            "/api/courses/{course_id}/notebooks/{notebook_id}/edges",
+            "notebooks.edges.create",
+        ),
+        route(
+            "DELETE",
+            "/api/courses/{course_id}/notebooks/{notebook_id}/edges/{edge_id}",
+            "notebooks.edges.delete",
+        ),
+        route("GET", "/api/vocabulary", "vocabulary.list"),
+        route("POST", "/api/vocabulary", "vocabulary.create"),
+        route("POST", "/api/vocabulary/{item_id}/review", "vocabulary.review"),
+        route("POST", "/api/vocabulary/check-in", "vocabulary.check_in"),
+        route("GET", "/api/reviews", "reviews"),
+        route("POST", "/api/mastery/{knowledge_id}/evidence", "mastery.evidence"),
+        route("GET", "/api/language/packs", "language.packs"),
+        route(
+            "GET",
+            "/api/courses/{course_id}/language/materials",
+            "language.materials",
+        ),
+        route(
+            "GET",
+            "/api/courses/{course_id}/language/journey",
+            "language.journey",
+        ),
+        route("POST", "/api/courses/{course_id}/language/start", "language.start"),
+        route(
+            "GET",
+            "/api/courses/{course_id}/language/lessons/{lesson_id}",
+            "language.lesson",
+        ),
+        route(
+            "POST",
+            "/api/courses/{course_id}/language/lessons/{lesson_id}/complete",
+            "language.complete_lesson",
+        ),
+        route(
+            "GET",
+            "/api/courses/{course_id}/language/overview",
+            "language.overview",
+        ),
+        route(
+            "POST",
+            "/api/courses/{course_id}/language/practice",
+            "language.practice",
+        ),
+        route(
+            "GET",
+            "/api/courses/{course_id}/language/sessions",
+            "language.sessions",
+        ),
+    ]
+});
 
 /// The command used to start the private Python domain adapter.
 #[derive(Clone)]
@@ -45,6 +185,15 @@ pub struct LocalApiConfig {
 /// route group without changing the renderer or HTTP lifecycle code.
 pub trait RouteAdapter: Send + Sync {
     fn dispatch(&self, request: AdapterRequest) -> Result<AdapterResponse, String>;
+    /// Dispatch to a named domain callable (Rust owns routing).  Adapters that
+    /// do not support native function dispatch return an error by default.
+    fn dispatch_call(
+        &self,
+        _function: &str,
+        _args: serde_json::Value,
+    ) -> Result<AdapterResponse, String> {
+        Err("native routing not supported by this adapter".to_string())
+    }
 }
 
 #[derive(Clone)]
@@ -167,6 +316,15 @@ async fn dispatch(
         return error_response(401, "UNAUTHORIZED", "本地会话令牌无效");
     }
 
+    // Native Rust routing: if this method+path is in the route table, call the
+    // matching domain function directly.  Otherwise fall back to the legacy
+    // Python passthrough while the migration completes.
+    if let Some((matched, path_params)) =
+        router::match_route(request.method().as_str(), request.path(), &ROUTES)
+    {
+        return dispatch_native(request, body, state, matched, &path_params).await;
+    }
+
     let mut headers: Vec<(String, String)> = request
         .headers()
         .iter()
@@ -199,6 +357,36 @@ async fn dispatch(
     };
     let adapter = state.adapter.clone();
     match web::block(move || adapter.dispatch(target)).await {
+        Ok(Ok(response)) => adapter_response(response),
+        Ok(Err(error)) => error_response(502, "PYTHON_ADAPTER_UNAVAILABLE", &error),
+        Err(error) => error_response(500, "LOCAL_API_ERROR", &error.to_string()),
+    }
+}
+
+/// Route handler for the routes Rust owns natively.  Parses path/query/body
+/// and calls the Python domain function by name over the worker bridge.
+async fn dispatch_native(
+    request: HttpRequest,
+    body: web::Bytes,
+    state: web::Data<LocalApiState>,
+    matched: &'static Route,
+    path_params: &HashMap<String, String>,
+) -> HttpResponse {
+    let query = parse_query(request.query_string());
+    let body_value: serde_json::Value = if body.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null)
+    };
+    let args = serde_json::json!({
+        "path": path_params,
+        "query": query,
+        "body": body_value,
+    });
+    let adapter = state.adapter.clone();
+    let function = matched.function;
+    let result = web::block(move || adapter.dispatch_call(function, args)).await;
+    match result {
         Ok(Ok(response)) => adapter_response(response),
         Ok(Err(error)) => error_response(502, "PYTHON_ADAPTER_UNAVAILABLE", &error),
         Err(error) => error_response(500, "LOCAL_API_ERROR", &error.to_string()),
@@ -269,15 +457,6 @@ struct PythonWorkerInner {
     next_id: AtomicU64,
 }
 
-#[derive(Serialize)]
-struct WireRequest {
-    id: u64,
-    method: String,
-    path_and_query: String,
-    headers: Vec<(String, String)>,
-    body_base64: String,
-}
-
 #[derive(Deserialize)]
 struct WireResponse {
     id: u64,
@@ -288,7 +467,8 @@ struct WireResponse {
 
 impl PythonWorker {
     fn start(config: PythonWorkerConfig) -> Result<Self, String> {
-        let mut child = Command::new(&config.program)
+        let mut command = Command::new(&config.program);
+        command
             .args(&config.arguments)
             .current_dir(&config.working_directory)
             .env("PYTHONIOENCODING", "utf-8")
@@ -296,7 +476,16 @@ impl PythonWorker {
             .env("STUDYPILOT_SESSION_TOKEN", &config.session_token)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // The packaged worker is a console-subsystem executable; launch it
+            // with a hidden console so the desktop app does not pop a terminal
+            // window (CREATE_NO_WINDOW) on every start.
+            command.creation_flags(0x08000000);
+        }
+        let mut child = command
             .spawn()
             .map_err(|error| format!("无法启动 Python 领域 Worker：{error}"))?;
         let stdin = child
@@ -339,19 +528,8 @@ impl PythonWorker {
         self.inner.session_token.clone()
     }
 
-    fn stop(&self) {
-        if let Ok(mut child) = self.inner.child.lock() {
-            if let Some(process) = child.as_mut() {
-                let _ = process.kill();
-                let _ = process.wait();
-            }
-            *child = None;
-        }
-    }
-}
-
-impl RouteAdapter for PythonWorker {
-    fn dispatch(&self, request: AdapterRequest) -> Result<AdapterResponse, String> {
+    /// Send one JSON frame to the worker on stdin and await its response.
+    fn send_frame(&self, frame: serde_json::Value) -> Result<AdapterResponse, String> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let (sender, receiver) = mpsc::sync_channel(1);
         self.inner
@@ -359,15 +537,9 @@ impl RouteAdapter for PythonWorker {
             .lock()
             .map_err(|_| "Python Worker 请求队列损坏".to_string())?
             .insert(id, sender);
-        let wire = WireRequest {
-            id,
-            method: request.method,
-            path_and_query: request.path_and_query,
-            headers: request.headers,
-            body_base64: BASE64.encode(request.body),
-        };
-        let encoded = serde_json::to_string(&wire)
-            .map_err(|error| format!("无法编码 Python Worker 请求：{error}"))?;
+        let mut frame = frame;
+        frame["id"] = serde_json::json!(id);
+        let encoded = frame.to_string();
         let write_result = (|| {
             let mut stdin = self
                 .inner
@@ -404,6 +576,41 @@ impl RouteAdapter for PythonWorker {
                 Err("Python Worker 响应超时".to_string())
             }
         }
+    }
+
+    fn stop(&self) {
+        if let Ok(mut child) = self.inner.child.lock() {
+            if let Some(process) = child.as_mut() {
+                let _ = process.kill();
+                let _ = process.wait();
+            }
+            *child = None;
+        }
+    }
+}
+
+impl RouteAdapter for PythonWorker {
+    fn dispatch(&self, request: AdapterRequest) -> Result<AdapterResponse, String> {
+        let wire = serde_json::json!({
+            "method": request.method,
+            "path_and_query": request.path_and_query,
+            "headers": request.headers,
+            "body_base64": BASE64.encode(request.body),
+        });
+        self.send_frame(wire)
+    }
+
+    fn dispatch_call(
+        &self,
+        function: &str,
+        args: serde_json::Value,
+    ) -> Result<AdapterResponse, String> {
+        let wire = serde_json::json!({
+            "kind": "call",
+            "function": function,
+            "args": args,
+        });
+        self.send_frame(wire)
     }
 }
 
@@ -508,7 +715,7 @@ mod tests {
         let response = test::call_service(
             &app,
             test::TestRequest::get()
-                .uri("/api/courses")
+                .uri("/api/not-native/1")
                 .insert_header((SESSION_HEADER, "public-token"))
                 .to_request(),
         )

@@ -1,8 +1,16 @@
 """Private stdio adapter for the Rust-owned desktop HTTP host.
 
 This process deliberately does not import Uvicorn or bind a socket.  Rust
-Actix-Web owns the public HTTP interface; this adapter preserves the existing
-Python domain modules while they are migrated one route group at a time.
+Actix-Web owns the public HTTP interface and routes every request.
+
+Two dispatch paths exist during the Rust gateway migration:
+
+* ``kind == "call"`` — Rust already parsed the route, query and body.  Python
+  runs the plain domain function by name (no FastAPI/Starlette involved).
+* otherwise (legacy HTTP envelope) — used as a temporary fallback for route
+  groups that are not yet migrated to native Rust routing.  This path runs the
+  existing FastAPI application object in-process and is removed once migration
+  completes.
 """
 
 from __future__ import annotations
@@ -11,14 +19,19 @@ import asyncio
 import base64
 import json
 import multiprocessing
+import os
 import sys
 from typing import Any
-from urllib.parse import urlsplit
 
+from backend.app.domain import DomainContext, build_context, call as domain_call
+
+# Legacy FastAPI fallback (being removed as route groups migrate to Rust).
 from backend.app.main import create_app
 
 
 async def invoke(app: Any, request: dict[str, Any]) -> dict[str, Any]:
+    from urllib.parse import urlsplit
+
     parsed = urlsplit(request["path_and_query"])
     raw_body = base64.b64decode(request.get("body_base64", ""))
     headers = [
@@ -71,7 +84,21 @@ async def invoke(app: Any, request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def to_wire(request_id: int, status: int, headers: list[tuple[str, str]], body: bytes) -> dict[str, Any]:
+    return {
+        "id": request_id,
+        "status": status,
+        "headers": headers,
+        "body_base64": base64.b64encode(body).decode("ascii"),
+    }
+
+
 async def serve() -> None:
+    ctx = build_context(
+        os.environ.get("STUDYPILOT_DATA_DIR", "."),
+        os.environ.get("STUDYPILOT_SESSION_TOKEN", ""),
+    )
+    # Legacy fallback app; lifespan start also (idempotently) initialises the DB.
     app = create_app()
     write_lock = asyncio.Lock()
 
@@ -87,7 +114,22 @@ async def serve() -> None:
 
         async def handle(payload: dict[str, Any]) -> None:
             try:
-                await write(await invoke(app, payload))
+                if payload.get("kind") == "call":
+                    result = await asyncio.to_thread(
+                        domain_call,
+                        ctx,
+                        payload.get("function", ""),
+                        payload.get("args") or {},
+                    )
+                    response = to_wire(
+                        payload.get("id", 0),
+                        result.status,
+                        result.headers,
+                        result.body,
+                    )
+                else:
+                    response = await invoke(app, payload)
+                await write(response)
             except Exception as error:  # pragma: no cover - defence for protocol integrity
                 await write(
                     {

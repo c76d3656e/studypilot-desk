@@ -22,6 +22,7 @@ const args = [
   "--noconfirm",
   "--clean",
   "--onedir",
+  "--noconsole",
   "--name",
   "StudyPilotPythonWorker",
   "--distpath",

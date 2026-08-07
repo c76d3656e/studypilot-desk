@@ -34,7 +34,7 @@ import { AgentHost } from "../agent/AgentHost";
 import type { AgentMode, AgentSource } from "../agent/types";
 import { announceDocumentSource, storeDocumentSourceFocus, type DocumentSourceFocus } from "../document/sourceFocus";
 import type { DocumentAgentContext } from "../document/DocumentWorkspace";
-import { ApiClient } from "../services/api";
+import { ApiClient, ApiError } from "../services/api";
 import type { Course, CourseCreateInput, KnowledgeNotebook, TodayData } from "../types";
 import { platform, type RuntimeConfig } from "../platform";
 import { waitForMotionFeedback } from "../ui/motion";
@@ -50,6 +50,19 @@ const EMPTY_TODAY: TodayData = {
   phase: { phase: 0, title: "尚未选择课程", gate: "NEW", acceptance: "", start_week: 1, end_week: 1 },
   tasks: [],
 };
+
+// The local service can take a moment to come up on first launch (cold Python
+// worker, WebView2 warm-up). Retry the boot fetch a few times with backoff so a
+// transient hiccup does not hard-fail the whole app.
+const BOOT_ATTEMPTS = 5;
+
+function bootErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const detail = error.details == null || error.details === "" ? "" : `（${error.details}）`;
+    return `${error.message}${detail}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
 
 // The document workspace includes rich Word, spreadsheet, and Markdown renderers.
 // Keep it out of the boot bundle until the user opens a document.
@@ -186,14 +199,24 @@ export function App() {
   useEffect(() => {
     let active = true;
     const capabilities = platform();
-    capabilities.runtime().then((value) => {
-      if (!active) return;
-      setRuntime(value);
-      setExportDirectory(value.dataDir ? `${value.dataDir.replace(/[\\/]$/, "")}\\exports` : "");
-      capabilities.files.getExportDirectory()
-        .then((directory) => { if (active) setExportDirectory(directory); })
-        .catch(() => undefined);
-    }).catch((error) => setFatal(String(error)));
+    const loadRuntime = (attempt: number) => {
+      capabilities.runtime().then((value) => {
+        if (!active) return;
+        setRuntime(value);
+        setExportDirectory(value.dataDir ? `${value.dataDir.replace(/[\\/]$/, "")}\\exports` : "");
+        capabilities.files.getExportDirectory()
+          .then((directory) => { if (active) setExportDirectory(directory); })
+          .catch(() => undefined);
+      }).catch((error) => {
+        if (!active) return;
+        if (attempt < BOOT_ATTEMPTS - 1) {
+          window.setTimeout(() => loadRuntime(attempt + 1), Math.min(1500, 250 * 2 ** (attempt + 1)));
+        } else {
+          setFatal(bootErrorMessage(error));
+        }
+      });
+    };
+    loadRuntime(0);
     capabilities.fonts.list()
       .then((fonts) => {
         if (!active) return;
@@ -229,20 +252,38 @@ export function App() {
 
   useEffect(() => {
     if (!api) return;
-    Promise.all([
-      api.get<Record<string, any>>("/api/settings"),
-      api.get<TodayData>("/api/today").catch(() => EMPTY_TODAY),
-      api.get<Record<string, any>>("/api/system/status"),
-      api.get<Course[]>("/api/courses"),
-    ]).then(([nextSettings, nextToday, nextSystem, nextCourses]) => {
-      setSettings(nextSettings); setToday(nextToday); setSystem(nextSystem); setCourses(nextCourses);
-      applyTheme(nextSettings.theme || "system");
-      applyTypography(nextSettings.ui_font || "system", nextSettings.code_font || "system", nextSettings.ui_font_scale || 1, nextSettings.force_uniform_font_size === true);
-      applyWallpaper(api.baseUrl, nextSettings.wallpaper_mode || "none", nextSettings.wallpaper_revision || "", nextSettings.wallpaper_opacity, nextSettings.wallpaper_blur);
-      applyGlassOpacity(nextSettings.glass_opacity);
-      applyWallpaperPalette(nextSettings.wallpaper_palette, nextSettings.wallpaper_adaptive_theme === true);
-      applyUiLanguage(nextSettings.ui_language);
-    }).catch((error) => setFatal(error instanceof Error ? error.message : String(error)));
+    let active = true;
+    let attempt = 0;
+    const boot = async () => {
+      while (active && attempt < BOOT_ATTEMPTS) {
+        try {
+          const [nextSettings, nextToday, nextSystem, nextCourses] = await Promise.all([
+            api.get<Record<string, any>>("/api/settings"),
+            api.get<TodayData>("/api/today").catch(() => EMPTY_TODAY),
+            api.get<Record<string, any>>("/api/system/status"),
+            api.get<Course[]>("/api/courses"),
+          ]);
+          if (!active) return;
+          setSettings(nextSettings); setToday(nextToday); setSystem(nextSystem); setCourses(nextCourses);
+          applyTheme(nextSettings.theme || "system");
+          applyTypography(nextSettings.ui_font || "system", nextSettings.code_font || "system", nextSettings.ui_font_scale || 1, nextSettings.force_uniform_font_size === true);
+          applyWallpaper(api.baseUrl, nextSettings.wallpaper_mode || "none", nextSettings.wallpaper_revision || "", nextSettings.wallpaper_opacity, nextSettings.wallpaper_blur);
+          applyGlassOpacity(nextSettings.glass_opacity);
+          applyWallpaperPalette(nextSettings.wallpaper_palette, nextSettings.wallpaper_adaptive_theme === true);
+          applyUiLanguage(nextSettings.ui_language);
+          return;
+        } catch (error) {
+          attempt += 1;
+          if (attempt >= BOOT_ATTEMPTS || !active) {
+            if (active) setFatal(bootErrorMessage(error));
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, Math.min(1500, 250 * 2 ** attempt)));
+        }
+      }
+    };
+    void boot();
+    return () => { active = false; };
   }, [api]);
 
   function applyTheme(theme: string) {
