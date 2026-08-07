@@ -1,21 +1,16 @@
 import { existsSync, rmSync } from "node:fs";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { delimiter, dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { resolvePythonInterpreter } from "./python-interpreter.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const isWindows = process.platform === "win32";
-const python = isWindows
-  ? join(root, ".venv", "Scripts", "python.exe")
-  : join(root, ".venv", "bin", "python");
+const python = resolvePythonInterpreter({ root });
 const distPath = resolve(root, "build", "backend-runtime");
 const workPath = resolve(root, "build", "pyinstaller-work");
 const specPath = resolve(root, "build", "pyinstaller-spec");
 const executable = resolve(distPath, "StudyPilotPythonWorker", isWindows ? "StudyPilotPythonWorker.exe" : "StudyPilotPythonWorker");
-
-if (!existsSync(python)) {
-  throw new Error(`Python virtual environment was not found: ${python}`);
-}
 
 rmSync(distPath, { recursive: true, force: true });
 rmSync(workPath, { recursive: true, force: true });
@@ -40,7 +35,7 @@ const args = [
   resolve(root, "backend", "app", "worker_bridge.py"),
 ];
 
-console.log("[StudyPilot] Building the packaged Python domain worker...");
+console.log(`[StudyPilot] Building the packaged Python domain worker with ${python}...`);
 const result = spawnSync(python, args, {
   cwd: root,
   env: { ...process.env, PYTHONIOENCODING: "utf-8" },
