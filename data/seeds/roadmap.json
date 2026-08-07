@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "source": {
+    "kind": "public_demo",
+    "filename": "public-demo-roadmap.json",
+    "license": "CC0-1.0"
+  },
+  "title": "通用学习路线演示",
+  "workstreams": [
+    "learning",
+    "practice"
+  ],
+  "phases": [
+    {
+      "phase": 1,
+      "title": "明确目标",
+      "start_week": 1,
+      "end_week": 4,
+      "gate": "G1",
+      "acceptance": "形成清晰目标、知识地图和可执行的每周节奏",
+      "remediation": "缩小范围并补齐前置知识",
+      "exit_criteria": "能够解释学习目标、边界、前置条件和验收方式"
+    },
+    {
+      "phase": 2,
+      "title": "建立基础",
+      "start_week": 5,
+      "end_week": 8,
+      "gate": "G2",
+      "acceptance": "掌握核心术语、基本方法和典型例题",
+      "remediation": "回到概念卡片与基础练习，修复薄弱点",
+      "exit_criteria": "可独立完成基础任务并说明关键步骤"
+    },
+    {
+      "phase": 3,
+      "title": "形成方法",
+      "start_week": 9,
+      "end_week": 12,
+      "gate": "G3",
+      "acceptance": "把零散知识组织成可复用的问题解决流程",
+      "remediation": "对失败案例进行分类并重新练习",
+      "exit_criteria": "面对新题目时能够选择方法并验证结果"
+    },
+    {
+      "phase": 4,
+      "title": "综合实践",
+      "start_week": 13,
+      "end_week": 16,
+      "gate": "G4",
+      "acceptance": "完成一个包含真实约束的综合练习",
+      "remediation": "拆分任务，先完成最小可验证版本",
+      "exit_criteria": "综合成果可运行、可解释、可复查"
+    },
+    {
+      "phase": 5,
+      "title": "反馈迭代",
+      "start_week": 17,
+      "end_week": 20,
+      "gate": "G5",
+      "acceptance": "根据测验和实践反馈持续修正学习策略",
+      "remediation": "减少新内容，优先处理高频错误",
+      "exit_criteria": "主要薄弱点都有对应的改进证据"
+    },
+    {
+      "phase": 6,
+      "title": "迁移与总结",
+      "start_week": 21,
+      "end_week": 24,
+      "gate": "G6",
+      "acceptance": "能将所学迁移到新场景并形成个人总结",
+      "remediation": "补做跨情境练习并完善复盘",
+      "exit_criteria": "能够独立讲解、应用并规划下一阶段学习"
+    }
+  ],
+  "weeks": [
+    {
+      "week": 1,
+      "phase": 1,
+      "gate": "G1",
+      "foundation": "目标与现状诊断",
+      "tasks": ["写下学习目的与使用场景", "完成一次基础诊断"],
+      "deliverables": ["目标说明", "诊断记录"]
+    },
+    {
+      "week": 2,
+      "phase": 1,
+      "gate": "G1",
+      "foundation": "范围与前置知识",
+      "tasks": ["列出主题边界", "识别需要补齐的前置知识"],
+      "deliverables": ["范围清单", "前置知识清单"]
+    },
+    {
+      "week": 3,
+      "phase": 1,
+      "gate": "G1",
+      "foundation": "知识地图",
+      "tasks": ["绘制核心概念关系", "标记优先级和依赖"],
+      "deliverables": ["知识地图"]
+    },
+    {
+      "week": 4,
+      "phase": 1,
+      "gate": "G1",
+      "foundation": "学习节奏",
+      "tasks": ["确定每周投入", "建立复习和测验节奏"],
+      "deliverables": ["四周执行表", "阶段复盘"]
+    },
+    {
+      "week": 5,
+      "phase": 2,
+      "gate": "G2",
+      "foundation": "核心术语",
+      "tasks": ["学习第一组核心概念", "用自己的话重新解释"],
+      "deliverables": ["概念卡片"]
+    },
+    {
+      "week": 6,
+      "phase": 2,
+      "gate": "G2",
+      "foundation": "基本方法",
+      "tasks": ["学习典型方法", "完成带步骤的基础练习"],
+      "deliverables": ["方法笔记", "练习记录"]
+    },
+    {
+      "week": 7,
+      "phase": 2,
+      "gate": "G2",
+      "foundation": "示例与反例",
+      "tasks": ["比较正确示例与常见错误", "整理判断标准"],
+      "deliverables": ["示例对照表"]
+    },
+    {
+      "week": 8,
+      "phase": 2,
+      "gate": "G2",
+      "foundation": "基础测验",
+      "tasks": ["完成阶段测验", "针对错题补练"],
+      "deliverables": ["测验结果", "错题复盘"]
+    },
+    {
+      "week": 9,
+      "phase": 3,
+      "gate": "G3",
+      "foundation": "问题分类",
+      "tasks": ["整理常见问题类型", "为每类问题选择方法"],
+      "deliverables": ["问题分类表"]
+    },
+    {
+      "week": 10,
+      "phase": 3,
+      "gate": "G3",
+      "foundation": "解决流程",
+      "tasks": ["建立从分析到验证的流程", "用新题目测试流程"],
+      "deliverables": ["解决流程清单"]
+    },
+    {
+      "week": 11,
+      "phase": 3,
+      "gate": "G3",
+      "foundation": "错误分析",
+      "tasks": ["收集失败案例", "区分理解、方法和执行错误"],
+      "deliverables": ["错误分类记录"]
+    },
+    {
+      "week": 12,
+      "phase": 3,
+      "gate": "G3",
+      "foundation": "方法复用",
+      "tasks": ["完成一组混合练习", "总结可复用模式"],
+      "deliverables": ["混合练习报告", "阶段复盘"]
+    },
+    {
+      "week": 13,
+      "phase": 4,
+      "gate": "G4",
+      "foundation": "实践选题",
+      "tasks": ["选择一个真实问题", "定义成功标准和限制"],
+      "deliverables": ["实践任务说明"]
+    },
+    {
+      "week": 14,
+      "phase": 4,
+      "gate": "G4",
+      "foundation": "最小方案",
+      "tasks": ["实现最小可验证方案", "记录关键决定"],
+      "deliverables": ["最小成果", "决策记录"]
+    },
+    {
+      "week": 15,
+      "phase": 4,
+      "gate": "G4",
+      "foundation": "验证与修正",
+      "tasks": ["用标准检查成果", "修正最主要的问题"],
+      "deliverables": ["验证记录", "改进版本"]
+    },
+    {
+      "week": 16,
+      "phase": 4,
+      "gate": "G4",
+      "foundation": "综合复盘",
+      "tasks": ["讲解完整过程", "记录仍未解决的问题"],
+      "deliverables": ["实践报告", "阶段复盘"]
+    },
+    {
+      "week": 17,
+      "phase": 5,
+      "gate": "G5",
+      "foundation": "反馈收集",
+      "tasks": ["汇总测验与实践反馈", "找出高频错误"],
+      "deliverables": ["反馈清单"]
+    },
+    {
+      "week": 18,
+      "phase": 5,
+      "gate": "G5",
+      "foundation": "薄弱点强化",
+      "tasks": ["针对两个主要薄弱点练习", "比较改进前后结果"],
+      "deliverables": ["强化练习记录"]
+    },
+    {
+      "week": 19,
+      "phase": 5,
+      "gate": "G5",
+      "foundation": "策略调整",
+      "tasks": ["调整学习材料与节奏", "验证新的学习策略"],
+      "deliverables": ["策略调整说明"]
+    },
+    {
+      "week": 20,
+      "phase": 5,
+      "gate": "G5",
+      "foundation": "再次测验",
+      "tasks": ["完成第二次综合测验", "确认薄弱点是否改善"],
+      "deliverables": ["对比报告", "阶段复盘"]
+    },
+    {
+      "week": 21,
+      "phase": 6,
+      "gate": "G6",
+      "foundation": "知识迁移",
+      "tasks": ["选择不同情境的新问题", "独立制定解决计划"],
+      "deliverables": ["迁移任务计划"]
+    },
+    {
+      "week": 22,
+      "phase": 6,
+      "gate": "G6",
+      "foundation": "独立完成",
+      "tasks": ["完成迁移任务", "记录与原场景的差异"],
+      "deliverables": ["迁移成果"]
+    },
+    {
+      "week": 23,
+      "phase": 6,
+      "gate": "G6",
+      "foundation": "表达与教学",
+      "tasks": ["准备简短讲解", "回答他人可能提出的问题"],
+      "deliverables": ["讲解提纲", "问答记录"]
+    },
+    {
+      "week": 24,
+      "phase": 6,
+      "gate": "G6",
+      "foundation": "总结与下一步",
+      "tasks": ["完成最终复盘", "规划下一阶段目标"],
+      "deliverables": ["学习总结", "下一阶段计划"]
+    }
+  ],
+  "templates": [
+    "weekly_review",
+    "experiment_record",
+    "error_case",
+    "paper_card",
+    "novelty_matrix",
+    "dataset_card",
+    "run_manifest",
+    "interview_card"
+  ]
+}
