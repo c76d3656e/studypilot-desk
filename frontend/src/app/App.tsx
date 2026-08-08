@@ -255,7 +255,7 @@ export function App() {
     let active = true;
     let attempt = 0;
     const boot = async () => {
-      while (active && attempt < BOOT_ATTEMPTS) {
+      while (active) {
         try {
           const [nextSettings, nextToday, nextSystem, nextCourses] = await Promise.all([
             api.get<Record<string, any>>("/api/settings"),
@@ -271,14 +271,22 @@ export function App() {
           applyGlassOpacity(nextSettings.glass_opacity);
           applyWallpaperPalette(nextSettings.wallpaper_palette, nextSettings.wallpaper_adaptive_theme === true);
           applyUiLanguage(nextSettings.ui_language);
+          setFatal("");
           return;
         } catch (error) {
           attempt += 1;
-          if (attempt >= BOOT_ATTEMPTS || !active) {
-            if (active) setFatal(bootErrorMessage(error));
-            return;
+          // Surface the error after the quick-retry burst, then keep retrying
+          // slowly in the background so the app recovers on its own when the
+          // local service comes back (connection problems never block the shell).
+          if (attempt >= BOOT_ATTEMPTS && active) {
+            setFatal(bootErrorMessage(error));
           }
-          await new Promise((resolve) => window.setTimeout(resolve, Math.min(1500, 250 * 2 ** attempt)));
+          await new Promise((resolve) =>
+            window.setTimeout(
+              resolve,
+              attempt >= BOOT_ATTEMPTS ? 10_000 : Math.min(1500, 250 * 2 ** attempt),
+            ),
+          );
         }
       }
     };
@@ -733,8 +741,34 @@ export function App() {
     return () => { leave(); window.removeEventListener("dragover", dragOver); window.removeEventListener("drop", drop); window.removeEventListener("dragleave", leave); };
   }, [api]);
 
-  if (fatal) return <div className="fatal-screen"><div className="brand-mark">SP</div><h1>本地服务未就绪</h1><p>{fatal}</p><button onClick={() => location.reload()}>重新连接</button></div>;
-  if (!runtime || !api || !settings || !today) return <BootScreen />;
+  if (!runtime || !api) return <BootScreen />;
+
+  // Connection problems never block the shell: render the desktop frame and
+  // show a non-blocking status panel in the content area while the local
+  // service is starting or unreachable (the boot effect keeps retrying).
+  const connectingLanguage = normalizeUiLanguage((settings as Record<string, any> | null)?.ui_language || "zh-CN");
+  if (!settings || !today || !system || !courses) {
+    return (
+      <div className="desktop-shell desktop-shell--library">
+        <TitleBar language={connectingLanguage} />
+        <div className="service-connection-panel">
+          {fatal ? (
+            <div className="service-connection-state is-error" role="alert">
+              <strong>本地服务连接失败</strong>
+              <p>{fatal}</p>
+              <button onClick={() => location.reload()}>重新连接</button>
+            </div>
+          ) : (
+            <div className="service-connection-state" role="status" aria-live="polite">
+              <span className="boot-spinner" aria-hidden="true" />
+              <strong>正在连接本地服务…</strong>
+              <p>学习数据正在后台装载</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const activeCourseId = Number(system?.active_course || settings.active_course || 1);
   const activeCourse = courses.find((course) => course.id === activeCourseId);

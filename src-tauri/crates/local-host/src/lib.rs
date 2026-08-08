@@ -382,7 +382,71 @@ pub fn start(config: LocalApiConfig) -> Result<LocalApiHandle, String> {
     }
 }
 
+/// CORS origin allowlist — mirrors the FastAPI middleware that previously
+/// guarded the loopback API.  Only loopback / localhost / tauri origins pass.
+fn cors_allows_origin(origin: &str) -> bool {
+    if origin == "tauri://localhost" {
+        return true;
+    }
+    let rest = origin
+        .strip_prefix("http://")
+        .or_else(|| origin.strip_prefix("https://"))
+        .unwrap_or("");
+    let host = rest.split(':').next().unwrap_or("");
+    matches!(host, "127.0.0.1" | "localhost" | "tauri.localhost")
+}
+
+/// Entry point for every local HTTP request.  Handles CORS preflight and adds
+/// CORS headers to every response so the renderer's cross-origin fetch (with
+/// the custom session header) is not blocked by the browser.
 async fn dispatch(
+    request: HttpRequest,
+    body: web::Bytes,
+    state: web::Data<LocalApiState>,
+) -> HttpResponse {
+    let allow_origin = request
+        .headers()
+        .get("origin")
+        .and_then(|value| value.to_str().ok())
+        .filter(|origin| cors_allows_origin(origin))
+        .map(str::to_owned);
+
+    if request.method() == actix_web::http::Method::OPTIONS {
+        let mut response = HttpResponse::Ok();
+        if let Some(origin) = allow_origin.as_deref() {
+            response.insert_header(("access-control-allow-origin", origin));
+            if let Some(headers) = request
+                .headers()
+                .get("access-control-request-headers")
+                .and_then(|value| value.to_str().ok())
+            {
+                response.insert_header(("access-control-allow-headers", headers));
+            }
+            if let Some(method) = request
+                .headers()
+                .get("access-control-request-method")
+                .and_then(|value| value.to_str().ok())
+            {
+                response.insert_header(("access-control-allow-methods", method));
+            }
+            response.insert_header(("access-control-max-age", "600"));
+        }
+        return response.finish();
+    }
+
+    let mut response = dispatch_inner(request, body, state).await;
+    if let Some(origin) = allow_origin {
+        if let Ok(value) = actix_web::http::header::HeaderValue::from_str(&origin) {
+            response.headers_mut().insert(
+                actix_web::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                value,
+            );
+        }
+    }
+    response
+}
+
+async fn dispatch_inner(
     request: HttpRequest,
     body: web::Bytes,
     state: web::Data<LocalApiState>,
@@ -419,14 +483,6 @@ async fn dispatch_native(
     matched: &'static Route,
     path_params: &HashMap<String, String>,
 ) -> HttpResponse {
-    let query = parse_query(request.query_string());
-    let body_value: serde_json::Value = if matched.raw_body {
-        serde_json::Value::String(BASE64.encode(&body))
-    } else if body.is_empty() {
-        serde_json::Value::Null
-    } else {
-        serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null)
-    };
     let mut query = parse_query(request.query_string());
     if matched.raw_body {
         let content_type = request
@@ -437,6 +493,13 @@ async fn dispatch_native(
             .to_string();
         query.insert("content_type".to_string(), serde_json::Value::String(content_type));
     }
+    let body_value: serde_json::Value = if matched.raw_body {
+        serde_json::Value::String(BASE64.encode(&body))
+    } else if body.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null)
+    };
     let args = serde_json::json!({
         "path": path_params,
         "query": query,
@@ -918,5 +981,69 @@ mod tests {
         )
         .await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn cors_preflight_for_tauri_origin() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(state()))
+                .app_data(web::PayloadConfig::new(MAX_REQUEST_BYTES))
+                .default_service(web::route().to(dispatch)),
+        )
+        .await;
+        let response = test::call_service(
+            &app,
+            test::TestRequest::default()
+                .method(actix_web::http::Method::OPTIONS)
+                .uri("/api/settings")
+                .insert_header(("origin", "http://tauri.localhost"))
+                .insert_header(("access-control-request-method", "GET"))
+                .insert_header(("access-control-request-headers", "x-studypilot-session"))
+                .to_request(),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("access-control-allow-origin")
+                .and_then(|v| v.to_str().ok()),
+            Some("http://tauri.localhost")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("access-control-allow-headers")
+                .and_then(|v| v.to_str().ok()),
+            Some("x-studypilot-session")
+        );
+    }
+
+    #[actix_web::test]
+    async fn cors_rejects_non_loopback_origin() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(state()))
+                .app_data(web::PayloadConfig::new(MAX_REQUEST_BYTES))
+                .default_service(web::route().to(dispatch)),
+        )
+        .await;
+        let response = test::call_service(
+            &app,
+            test::TestRequest::get()
+                .uri("/api/courses")
+                .insert_header((SESSION_HEADER, "public-token"))
+                .insert_header(("origin", "https://evil.example.com"))
+                .to_request(),
+        )
+        .await;
+        assert!(
+            response
+                .headers()
+                .get("access-control-allow-origin")
+                .is_none(),
+            "non-loopback origin must not be echoed back"
+        );
     }
 }
