@@ -1,6 +1,6 @@
 [package]
 name = "studypilot-desk"
-version = "0.2.0"
+version = "0.2.1"
 description = "StudyPilot Desk native shell"
 authors = ["StudyPilot"]
 edition = "2021"
