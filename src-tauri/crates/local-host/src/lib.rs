@@ -33,18 +33,34 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         route("GET", "/api/health", "health"),
         route("GET", "/api/system/status", "system.status"),
         route("GET", "/api/settings", "settings.list"),
-        route("GET", "/api/settings/active-course", "settings.active_course"),
+        route(
+            "GET",
+            "/api/settings/active-course",
+            "settings.active_course",
+        ),
         route("PUT", "/api/settings/{key}", "settings.update"),
         route("GET", "/api/courses", "courses.list"),
         route("POST", "/api/courses", "courses.create"),
         route("PATCH", "/api/courses/{course_id}", "courses.update"),
         route("GET", "/api/courses/trash", "courses.trash"),
-        route("POST", "/api/courses/{course_id}/activate", "courses.activate"),
+        route(
+            "POST",
+            "/api/courses/{course_id}/activate",
+            "courses.activate",
+        ),
         route("GET", "/api/courses/{course_id}/home", "courses.home"),
         route("GET", "/api/courses/{course_id}/stats", "courses.stats"),
         route("DELETE", "/api/courses/{course_id}", "courses.delete"),
-        route("POST", "/api/courses/{course_id}/restore", "courses.restore"),
-        route("DELETE", "/api/courses/{course_id}/permanent", "courses.purge"),
+        route(
+            "POST",
+            "/api/courses/{course_id}/restore",
+            "courses.restore",
+        ),
+        route(
+            "DELETE",
+            "/api/courses/{course_id}/permanent",
+            "courses.purge",
+        ),
         route("GET", "/api/courses/{course_id}/roadmap", "courses.roadmap"),
         route("GET", "/api/roadmaps", "roadmap"),
         route("GET", "/api/today", "today"),
@@ -53,28 +69,60 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         route("GET", "/api/tasks/{task_id}", "tasks.get"),
         route("PATCH", "/api/tasks/{task_id}", "tasks.update"),
         route("DELETE", "/api/tasks/{task_id}", "tasks.delete"),
-        route("POST", "/api/tasks/{task_id}/evidence", "tasks.evidence.add"),
-        route("GET", "/api/courses/{course_id}/documents", "documents.list"),
+        route(
+            "POST",
+            "/api/tasks/{task_id}/evidence",
+            "tasks.evidence.add",
+        ),
+        route(
+            "GET",
+            "/api/courses/{course_id}/documents",
+            "documents.list",
+        ),
         route("GET", "/api/documents", "documents.list"),
         route("GET", "/api/documents/{document_id}", "documents.get"),
-        route("GET", "/api/documents/{document_id}/content", "documents.content"),
+        route(
+            "GET",
+            "/api/documents/{document_id}/content",
+            "documents.content",
+        ),
         route("GET", "/api/search", "search"),
         route("GET", "/api/library", "library"),
         route("GET", "/api/knowledge", "knowledge.graph"),
         route("GET", "/api/knowledge/nodes", "knowledge.nodes.list"),
         route("POST", "/api/knowledge/nodes", "knowledge.nodes.create"),
-        route("PATCH", "/api/knowledge/nodes/{node_id}", "knowledge.nodes.update"),
-        route("DELETE", "/api/knowledge/nodes/{node_id}", "knowledge.nodes.delete"),
+        route(
+            "PATCH",
+            "/api/knowledge/nodes/{node_id}",
+            "knowledge.nodes.update",
+        ),
+        route(
+            "DELETE",
+            "/api/knowledge/nodes/{node_id}",
+            "knowledge.nodes.delete",
+        ),
         route(
             "GET",
             "/api/knowledge/nodes/{node_id}/prerequisites",
             "knowledge.nodes.prerequisites",
         ),
         route("POST", "/api/knowledge/edges", "knowledge.edges.create"),
-        route("DELETE", "/api/knowledge/edges/{edge_id}", "knowledge.edges.delete"),
+        route(
+            "DELETE",
+            "/api/knowledge/edges/{edge_id}",
+            "knowledge.edges.delete",
+        ),
         route("GET", "/api/mastery", "mastery"),
-        route("GET", "/api/courses/{course_id}/notebooks", "notebooks.list"),
-        route("POST", "/api/courses/{course_id}/notebooks", "notebooks.create"),
+        route(
+            "GET",
+            "/api/courses/{course_id}/notebooks",
+            "notebooks.list",
+        ),
+        route(
+            "POST",
+            "/api/courses/{course_id}/notebooks",
+            "notebooks.create",
+        ),
         route(
             "PATCH",
             "/api/courses/{course_id}/notebooks/{notebook_id}",
@@ -117,10 +165,18 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         ),
         route("GET", "/api/vocabulary", "vocabulary.list"),
         route("POST", "/api/vocabulary", "vocabulary.create"),
-        route("POST", "/api/vocabulary/{item_id}/review", "vocabulary.review"),
+        route(
+            "POST",
+            "/api/vocabulary/{item_id}/review",
+            "vocabulary.review",
+        ),
         route("POST", "/api/vocabulary/check-in", "vocabulary.check_in"),
         route("GET", "/api/reviews", "reviews"),
-        route("POST", "/api/mastery/{knowledge_id}/evidence", "mastery.evidence"),
+        route(
+            "POST",
+            "/api/mastery/{knowledge_id}/evidence",
+            "mastery.evidence",
+        ),
         route("GET", "/api/language/packs", "language.packs"),
         route(
             "GET",
@@ -132,7 +188,11 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
             "/api/courses/{course_id}/language/journey",
             "language.journey",
         ),
-        route("POST", "/api/courses/{course_id}/language/start", "language.start"),
+        route(
+            "POST",
+            "/api/courses/{course_id}/language/start",
+            "language.start",
+        ),
         route(
             "GET",
             "/api/courses/{course_id}/language/lessons/{lesson_id}",
@@ -160,13 +220,25 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         ),
         route("PATCH", "/api/documents/{document_id}", "documents.update"),
         route("DELETE", "/api/documents/{document_id}", "documents.delete"),
-        route("POST", "/api/documents/{document_id}/restore", "documents.restore"),
+        route(
+            "POST",
+            "/api/documents/{document_id}/restore",
+            "documents.restore",
+        ),
         route("GET", "/api/agent/providers", "agent.providers.list"),
         route("GET", "/api/agent/threads", "agent.threads.list"),
         route("POST", "/api/agent/threads", "agent.threads.create"),
         route("GET", "/api/agent/threads/{thread_id}", "agent.threads.get"),
-        route("PATCH", "/api/agent/threads/{thread_id}", "agent.threads.update"),
-        route("DELETE", "/api/agent/threads/{thread_id}", "agent.threads.delete"),
+        route(
+            "PATCH",
+            "/api/agent/threads/{thread_id}",
+            "agent.threads.update",
+        ),
+        route(
+            "DELETE",
+            "/api/agent/threads/{thread_id}",
+            "agent.threads.delete",
+        ),
         route("GET", "/api/python/runs", "python.runs.list"),
         route("GET", "/api/python", "python.runs.list"),
         route("GET", "/api/python/runs/{run_id}", "python.runs.get"),
@@ -175,9 +247,21 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
         route("POST", "/api/system/shutdown", "system.shutdown"),
         route("GET", "/api/quizzes", "quiz.history"),
         route("GET", "/api/documents/{document_id}/file", "documents.file"),
-        route("POST", "/api/documents/{document_id}/export", "documents.export"),
-        route("GET", "/api/settings/wallpaper/image", "settings.wallpaper.image"),
-        route("DELETE", "/api/settings/wallpaper", "settings.wallpaper.clear"),
+        route(
+            "POST",
+            "/api/documents/{document_id}/export",
+            "documents.export",
+        ),
+        route(
+            "GET",
+            "/api/settings/wallpaper/image",
+            "settings.wallpaper.image",
+        ),
+        route(
+            "DELETE",
+            "/api/settings/wallpaper",
+            "settings.wallpaper.clear",
+        ),
         route("GET", "/api/media/images/{asset_id}", "media.images.get"),
         route(
             "GET",
@@ -190,12 +274,36 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
             "notebooks.export",
         ),
         route("POST", "/api/knowledge/export", "knowledge.export"),
-        route("GET", "/api/documents/{document_id}/revisions", "documents.revisions.list"),
-        route("POST", "/api/documents/{document_id}/revisions", "documents.revisions.create"),
-        route("POST", "/api/documents/{document_id}/revisions/undo", "documents.revisions.undo"),
-        route("POST", "/api/documents/{document_id}/revisions/redo", "documents.revisions.redo"),
-        route("GET", "/api/documents/{document_id}/annotations", "documents.annotations.list"),
-        route("POST", "/api/documents/{document_id}/annotations", "documents.annotations.create"),
+        route(
+            "GET",
+            "/api/documents/{document_id}/revisions",
+            "documents.revisions.list",
+        ),
+        route(
+            "POST",
+            "/api/documents/{document_id}/revisions",
+            "documents.revisions.create",
+        ),
+        route(
+            "POST",
+            "/api/documents/{document_id}/revisions/undo",
+            "documents.revisions.undo",
+        ),
+        route(
+            "POST",
+            "/api/documents/{document_id}/revisions/redo",
+            "documents.revisions.redo",
+        ),
+        route(
+            "GET",
+            "/api/documents/{document_id}/annotations",
+            "documents.annotations.list",
+        ),
+        route(
+            "POST",
+            "/api/documents/{document_id}/annotations",
+            "documents.annotations.create",
+        ),
         route(
             "PATCH",
             "/api/documents/{document_id}/annotations/{annotation_id}",
@@ -206,29 +314,77 @@ static ROUTES: LazyLock<Vec<Route>> = LazyLock::new(|| {
             "/api/documents/{document_id}/annotations/{annotation_id}",
             "documents.annotations.delete",
         ),
-        route("POST", "/api/documents/{document_id}/highlights", "documents.highlights.create"),
+        route(
+            "POST",
+            "/api/documents/{document_id}/highlights",
+            "documents.highlights.create",
+        ),
         route("GET", "/api/backups", "backups.list"),
         route("POST", "/api/backups", "backups.create"),
         route("GET", "/api/python/environments", "python.environments"),
         route("POST", "/api/python/runs", "python.runs.start"),
         route("POST", "/api/quizzes/grade", "quiz.grade"),
-        route("PUT", "/api/agent/providers/{provider_id}", "agent.providers.update"),
-        route("DELETE", "/api/agent/providers/{provider_id}", "agent.providers.delete"),
-        route("POST", "/api/agent/providers/{provider_id}/test", "agent.providers.test"),
-        route("POST", "/api/agent/providers/{provider_id}/diagnostics", "agent.providers.diagnostics"),
-        route("POST", "/api/agent/threads/{thread_id}/generate-title", "agent.threads.generate_title"),
-        route("POST", "/api/agent/threads/{thread_id}/messages", "agent.threads.messages.create"),
+        route(
+            "PUT",
+            "/api/agent/providers/{provider_id}",
+            "agent.providers.update",
+        ),
+        route(
+            "DELETE",
+            "/api/agent/providers/{provider_id}",
+            "agent.providers.delete",
+        ),
+        route(
+            "POST",
+            "/api/agent/providers/{provider_id}/test",
+            "agent.providers.test",
+        ),
+        route(
+            "POST",
+            "/api/agent/providers/{provider_id}/diagnostics",
+            "agent.providers.diagnostics",
+        ),
+        route(
+            "POST",
+            "/api/agent/threads/{thread_id}/generate-title",
+            "agent.threads.generate_title",
+        ),
+        route(
+            "POST",
+            "/api/agent/threads/{thread_id}/messages",
+            "agent.threads.messages.create",
+        ),
         stream_route(
             "POST",
             "/api/agent/threads/{thread_id}/messages/stream",
             "agent.messages.stream",
         ),
-        route("POST", "/api/agent/action-plans/{plan_id}/confirm", "agent.actions.confirm"),
-        route("POST", "/api/agent/action-plans/{plan_id}/cancel", "agent.actions.cancel"),
-        route("POST", "/api/agent/action-plans/{plan_id}/undo", "agent.actions.undo"),
-        route("POST", "/api/courses/{course_id}/roadmap/generate", "courses.roadmap.generate"),
+        route(
+            "POST",
+            "/api/agent/action-plans/{plan_id}/confirm",
+            "agent.actions.confirm",
+        ),
+        route(
+            "POST",
+            "/api/agent/action-plans/{plan_id}/cancel",
+            "agent.actions.cancel",
+        ),
+        route(
+            "POST",
+            "/api/agent/action-plans/{plan_id}/undo",
+            "agent.actions.undo",
+        ),
+        route(
+            "POST",
+            "/api/courses/{course_id}/roadmap/generate",
+            "courses.roadmap.generate",
+        ),
         // Multipart uploads: raw body forwarded to the domain callable.
-        raw_route("POST", "/api/settings/wallpaper", "settings.wallpaper.upload"),
+        raw_route(
+            "POST",
+            "/api/settings/wallpaper",
+            "settings.wallpaper.upload",
+        ),
         raw_route("POST", "/api/documents/import", "documents.import"),
         raw_route("POST", "/api/backups/restore", "backups.restore"),
         raw_route("POST", "/api/media/images", "media.images.upload"),
@@ -437,10 +593,9 @@ async fn dispatch(
     let mut response = dispatch_inner(request, body, state).await;
     if let Some(origin) = allow_origin {
         if let Ok(value) = actix_web::http::header::HeaderValue::from_str(&origin) {
-            response.headers_mut().insert(
-                actix_web::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-                value,
-            );
+            response
+                .headers_mut()
+                .insert(actix_web::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, value);
         }
     }
     response
@@ -491,7 +646,10 @@ async fn dispatch_native(
             .and_then(|value| value.to_str().ok())
             .unwrap_or("")
             .to_string();
-        query.insert("content_type".to_string(), serde_json::Value::String(content_type));
+        query.insert(
+            "content_type".to_string(),
+            serde_json::Value::String(content_type),
+        );
     }
     let body_value: serde_json::Value = if matched.raw_body {
         serde_json::Value::String(BASE64.encode(&body))
@@ -543,17 +701,15 @@ async fn dispatch_stream(
         Err(error) => return error_response(500, "LOCAL_API_ERROR", &error.to_string()),
     };
     let (tx, rx) = futures_mpsc::unbounded::<web::Bytes>();
-    std::thread::spawn(move || {
-        loop {
-            match receiver.recv_timeout(Duration::from_secs(600)) {
-                Ok(StreamEvent::Event(line)) => {
-                    if tx.unbounded_send(web::Bytes::from(line + "\n")).is_err() {
-                        break;
-                    }
+    std::thread::spawn(move || loop {
+        match receiver.recv_timeout(Duration::from_secs(600)) {
+            Ok(StreamEvent::Event(line)) => {
+                if tx.unbounded_send(web::Bytes::from(line + "\n")).is_err() {
+                    break;
                 }
-                Ok(StreamEvent::Done) => break,
-                Err(_) => break,
             }
+            Ok(StreamEvent::Done) => break,
+            Err(_) => break,
         }
     });
     use futures_util::StreamExt;
@@ -802,7 +958,11 @@ impl PythonWorker {
             stdin.flush()
         })();
         if let Err(error) = write_result {
-            let _ = self.inner.streams.lock().map(|mut streams| streams.remove(&id));
+            let _ = self
+                .inner
+                .streams
+                .lock()
+                .map(|mut streams| streams.remove(&id));
             return Err(format!("无法向 Python Worker 发送流式请求：{error}"));
         }
         Ok(receiver)

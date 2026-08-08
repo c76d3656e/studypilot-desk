@@ -28,20 +28,12 @@ pub fn route(method: &'static str, pattern: &'static str, function: &'static str
 
 /// A route that forwards the raw multipart body (base64) to the domain
 /// callable instead of parsing it as JSON.
-pub fn raw_route(
-    method: &'static str,
-    pattern: &'static str,
-    function: &'static str,
-) -> Route {
+pub fn raw_route(method: &'static str, pattern: &'static str, function: &'static str) -> Route {
     route_with(method, pattern, function, true, false)
 }
 
 /// A route whose domain callable yields NDJSON events that are streamed back.
-pub fn stream_route(
-    method: &'static str,
-    pattern: &'static str,
-    function: &'static str,
-) -> Route {
+pub fn stream_route(method: &'static str, pattern: &'static str, function: &'static str) -> Route {
     route_with(method, pattern, function, false, true)
 }
 
@@ -57,10 +49,12 @@ fn route_with(
         segments: pattern
             .split('/')
             .filter(|seg| !seg.is_empty())
-            .map(|seg| match seg.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
-                Some(name) => Segment::Param(name),
-                None => Segment::Literal(seg),
-            })
+            .map(
+                |seg| match seg.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+                    Some(name) => Segment::Param(name),
+                    None => Segment::Literal(seg),
+                },
+            )
             .collect(),
         function,
         raw_body,

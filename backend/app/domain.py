@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__
 from .db import Database
 from .errors import AppError, error_body
 from .repository import Repository
@@ -155,7 +154,7 @@ def call(ctx: DomainContext, name: str, args: dict[str, Any]) -> DomainResult:
     except (TypeError, ValueError, KeyError, IndexError) as exc:
         LOGGER.exception("Domain function %s rejected its arguments", name)
         return error(422, "VALIDATION_ERROR", "请求参数不正确", repr(exc))
-    except Exception as exc:  # pragma: no cover - protocol integrity
+    except Exception:  # pragma: no cover - protocol integrity
         LOGGER.exception("Unhandled domain error in %s", name)
         return error(500, "INTERNAL_ERROR", "服务暂时不可用", None)
     if isinstance(result, DomainResult):
