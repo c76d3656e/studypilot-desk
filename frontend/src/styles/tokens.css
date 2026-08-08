@@ -47,7 +47,9 @@
   --ui-root-font-size: 16px;
   --ui-body-font-size: 14px;
   --ui-control-font-size: 13px;
+  --ui-caption-font-size: 12px;
   --ui-small-font-size: 11px;
+  --ui-micro-font-size: 10px;
   --ui-reading-font-size: 15px;
   --ui-heading-sm-font-size: 17px;
   --ui-heading-md-font-size: 20px;
