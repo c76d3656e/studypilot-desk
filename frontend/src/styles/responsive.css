@@ -1,0 +1,51 @@
+/* ===== Responsive layout =====
+   Loaded last so these overrides win across every view.  Uses the breakpoint
+   tokens from tokens.css: --bp-tablet (900px), --bp-mobile (720px). */
+
+/* ---- Tablet (<=900px): tighter spacing, dashboard keeps 2 columns ---- */
+@media (max-width: 900px) {
+  .page { padding-inline: clamp(14px, 3vw, 22px); }
+}
+
+/* ---- Mobile (<=720px): stack content into a single column ---- */
+@media (max-width: 720px) {
+  .page { padding: 16px 14px 32px; }
+  .page-heading { flex-direction: column; align-items: stretch; gap: 12px; }
+
+  /* Stack the primary content grids. */
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .knowledge-layout { grid-template-columns: 1fr; }
+  .lab-layout { grid-template-columns: 1fr; }
+  .studio-create { grid-template-columns: 1fr; }
+  .split-ledger { grid-template-columns: 1fr; }
+  .language-course-identity { grid-template-columns: 1fr; }
+  .course-wizard-row { grid-template-columns: 1fr; }
+  .metric-row { grid-template-columns: 1fr 1fr; }
+  .week-row { grid-template-columns: 1fr; gap: 8px; }
+  .search-bar { grid-template-columns: 1fr; }
+  .review-columns, .settings-sections { grid-template-columns: 1fr; }
+  .settings-sections > section, .review-columns > section { min-height: auto; }
+
+  /* Phase tracker: keep it horizontally scrollable instead of crushing it. */
+  .phase-track {
+    grid-template-columns: repeat(6, minmax(120px, 1fr));
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  /* Agent dock: full width, slides over content from the right. */
+  .agent-host.is-agent-open { grid-template-columns: 1fr; }
+  .agent-dock {
+    position: fixed;
+    inset: var(--titlebar) 0 0 0;
+    z-index: 80;
+    border-left: 0;
+    box-shadow: -16px 0 40px rgba(18, 22, 32, .2);
+  }
+
+  /* Bigger touch targets on mobile. */
+  .navrail nav button { height: 46px; }
+  .primary-action, .quiet-action, .inline-form button,
+  .search-bar button, .editor-panel button, .editor-actions button { min-height: 44px; }
+  .titlebar__controls button { width: 34px; height: 34px; }
+}

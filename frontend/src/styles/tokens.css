@@ -54,6 +54,10 @@
   --ui-heading-sm-font-size: 17px;
   --ui-heading-md-font-size: 20px;
   --ui-heading-lg-font-size: 28px;
+  /* Responsive breakpoints (single source of truth for layout media queries). */
+  --bp-desktop: 1100px;
+  --bp-tablet: 900px;
+  --bp-mobile: 720px;
   --app-wallpaper-image: none;
   --app-wallpaper-opacity: .82;
   --app-wallpaper-blur: 0px;

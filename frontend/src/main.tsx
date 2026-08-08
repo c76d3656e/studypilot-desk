@@ -16,6 +16,7 @@ import "./styles/assistant-enhancements.css";
 import "./styles/reader-navigation-fix.css";
 import "./styles/uniform-typography.css";
 import "./styles/editable-formats.css";
+import "./styles/responsive.css";
 
 createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);
 

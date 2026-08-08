@@ -114,6 +114,7 @@ export function App() {
   const [knowledgeMode, setKnowledgeMode] = useState<"shelf" | "canvas">("shelf");
   const [languagePracticeType, setLanguagePracticeType] = useState<LanguagePracticeType>("reading");
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [fatal, setFatal] = useState("");
   const [workspaceNotice, setWorkspaceNotice] = useState("");
   const [documentNavigationOpen, setDocumentNavigationOpen] = useState(false);
@@ -1216,6 +1217,7 @@ export function App() {
         language={language}
         navigationCollapsed={collapsed}
         onExpandNavigation={() => setCollapsed(false)}
+        onMenuClick={() => setMobileNavOpen(true)}
       />
       <AgentHost
         api={api}
@@ -1233,7 +1235,7 @@ export function App() {
         workspaceToolbarAutoHide={settings.workspace_toolbar_auto_hide !== false}
         onOpenSource={(source) => openAgentSource(route.level === "course" ? route.courseId : activeCourseId, source)}
       >
-        <div className="desktop-body">
+        <div className={`desktop-body ${mobileNavOpen ? "is-mobile-nav-open" : ""}`}>
           <NavRail
             active={workspaceView}
             onChange={changeView}
@@ -1242,6 +1244,8 @@ export function App() {
             courseTitle={routeCourse?.title}
             onBackToLibrary={() => navigate({ level: "library" })}
             language={language}
+            mobileOpen={mobileNavOpen}
+            onCloseMobile={() => setMobileNavOpen(false)}
           />
           <main className="main-stage">
             <div className="context-strip"><CourseSwitcher courses={courses} activeCourseId={Number(system?.active_course || settings.active_course || 1)} fallbackTitle={today.phase.title} onActivate={openNotebook} onCreate={createCourse} /><i /><span>{language === "en-US" ? `Week ${today.week.week}` : `第 ${today.week.week} 周`}</span><small>{system?.status === "ready" ? (language === "en-US" ? "Local service ready" : "本地服务正常") : (language === "en-US" ? "Check local service" : "本地服务待检查")}</small></div>
