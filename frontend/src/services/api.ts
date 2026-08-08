@@ -9,6 +9,14 @@ export class ApiError extends Error {
   }
 }
 
+/** Append the session token to a raw API URL for loads that cannot send the
+ * custom header (iframe, <img>, CSS background). */
+export function withSession(url: string, token?: string): string {
+  if (!token) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}session=${encodeURIComponent(token)}`;
+}
+
 export interface DownloadArtifact {
   bytes: Uint8Array;
   filename: string;
@@ -21,7 +29,10 @@ export interface ApiRequestOptions {
 }
 
 export class ApiClient {
-  constructor(public readonly baseUrl: string, private readonly sessionToken?: string) {}
+  constructor(
+    public readonly baseUrl: string,
+    public readonly sessionToken?: string,
+  ) {}
 
   private requestHeaders(init?: HeadersInit): Headers {
     const headers = new Headers(init);

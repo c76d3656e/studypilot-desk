@@ -811,7 +811,7 @@ export function App() {
         wallpaperBlur={Number(settings.wallpaper_blur) || 0}
         glassOpacity={normalizeGlassOpacity(settings.glass_opacity)}
         wallpaperAdaptiveTheme={settings.wallpaper_adaptive_theme === true}
-        wallpaperImageUrl={wallpaperUrl(api.baseUrl, settings.wallpaper_mode, settings.wallpaper_revision)}
+        wallpaperImageUrl={wallpaperUrl(api.baseUrl, settings.wallpaper_mode, settings.wallpaper_revision, api.sessionToken)}
         exportDirectory={exportDirectory}
         workspaceToolbarAutoHide={settings.workspace_toolbar_auto_hide !== false}
         language={language}
@@ -1134,7 +1134,7 @@ export function App() {
       initialWallpaperAdaptiveTheme={settings.wallpaper_adaptive_theme === true}
       initialLanguage={language}
       initialWorkspaceToolbarAutoHide={settings.workspace_toolbar_auto_hide !== false}
-      wallpaperImageUrl={wallpaperUrl(api.baseUrl, settings.wallpaper_mode, settings.wallpaper_revision)}
+      wallpaperImageUrl={wallpaperUrl(api.baseUrl, settings.wallpaper_mode, settings.wallpaper_revision, api.sessionToken)}
       exportDirectory={exportDirectory}
       onTheme={changeTheme}
       onTypography={changeTypography}

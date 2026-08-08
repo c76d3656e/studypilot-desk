@@ -455,7 +455,7 @@ async fn dispatch_inner(
         return error_response(413, "PAYLOAD_TOO_LARGE", "请求超过本地 API 限制");
     }
     let is_health = request.path() == "/api/health";
-    if !is_health && !session_is_valid(request.headers(), &state.public_session_token) {
+    if !is_health && !session_is_valid(&request, &state.public_session_token) {
         return error_response(401, "UNAUTHORIZED", "本地会话令牌无效");
     }
 
@@ -593,10 +593,20 @@ fn error_response(status: u16, code: &str, message: &str) -> HttpResponse {
     ))
 }
 
-fn session_is_valid(headers: &actix_web::http::header::HeaderMap, expected: &str) -> bool {
-    headers
+fn session_is_valid(request: &HttpRequest, expected: &str) -> bool {
+    if request
+        .headers()
         .get(SESSION_HEADER)
         .and_then(|value| value.to_str().ok())
+        .is_some_and(|provided| provided == expected)
+    {
+        return true;
+    }
+    // Raw file / media loads (PDF iframe, <img>, CSS background) cannot set a
+    // custom header, so accept the session token in the query string too.
+    parse_query(request.query_string())
+        .get("session")
+        .and_then(|value| value.as_str())
         .is_some_and(|provided| provided == expected)
 }
 
@@ -1045,5 +1055,26 @@ mod tests {
                 .is_none(),
             "non-loopback origin must not be echoed back"
         );
+    }
+
+    #[actix_web::test]
+    async fn session_token_in_query_param_is_accepted() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(state()))
+                .app_data(web::PayloadConfig::new(MAX_REQUEST_BYTES))
+                .default_service(web::route().to(dispatch)),
+        )
+        .await;
+        // Raw file/media loads (iframe/<img>) cannot set the custom header, so
+        // the token may also travel as a query parameter.
+        let response = test::call_service(
+            &app,
+            test::TestRequest::get()
+                .uri("/api/documents/1/file?session=public-token")
+                .to_request(),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
