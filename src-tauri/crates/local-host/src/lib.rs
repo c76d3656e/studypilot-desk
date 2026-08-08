@@ -717,7 +717,7 @@ async fn dispatch_stream(
         .content_type("application/x-ndjson; charset=utf-8")
         .insert_header(("cache-control", "no-cache, no-transform"))
         .insert_header(("x-content-type-options", "nosniff"))
-        .streaming(rx.map(|bytes| Result::<web::Bytes, actix_web::Error>::Ok(bytes)))
+        .streaming(rx.map(Result::<web::Bytes, actix_web::Error>::Ok))
 }
 
 fn adapter_response(response: AdapterResponse) -> HttpResponse {
